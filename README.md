@@ -40,129 +40,222 @@ same excitement.
 
 ## Project status
 
-AISLOP now has a Python package and MCP server implementation. It supports
-CPython 3.12 and 3.13 and the official MCP Python SDK 1.13.x. The source checkout
-can be installed with `uv sync`; no claim is made that a public package has been
-published yet.
+AISLOP 1.0.0 is complete and packaged as [`aislop` on PyPI](https://pypi.org/project/aislop/1.0.0/). The canonical source repository is [BoondockMark/AISLOP on GitHub](https://github.com/BoondockMark/AISLOP). Version 1.0.0 is the only planned release and is unmaintained; see the [maintenance and release policy](MAINTENANCE.md).
+
+The supported matrix is deliberately narrow:
+
+| Runtime | Platforms | Architecture / notes |
+| --- | --- | --- |
+| CPython 3.12 or 3.13 | Windows 11 | 64-bit |
+| CPython 3.12 or 3.13 | macOS 13 or newer | 64-bit Intel or Apple silicon |
+| CPython 3.12 or 3.13 | glibc-based Linux, kernel 5.15 or newer | 64-bit |
+
+PyPy, other Python versions, 32-bit systems, mobile platforms, WSL, BSD, and musl-based Linux are unsupported. CI tests both supported Python versions on Windows, macOS, and Linux. AISLOP uses the official MCP Python SDK (`mcp>=1.13.1,<2`); its wheel is platform-independent.
 
 ## Set up the server
 
-### 1. Acquire the source
+### 1. Install the published package
+
+Install into a dedicated virtual environment as an unprivileged user:
 
 ```sh
-git clone <repository-url>
-cd AISLOP
+python -m pip install aislop==1.0.0
 ```
 
-Replace `<repository-url>` with the clone URL for this repository.
+That is the exact release installation command and obtains the package from [PyPI](https://pypi.org/project/aislop/1.0.0/). To work from canonical source instead, clone `https://github.com/BoondockMark/AISLOP.git`; source development uses `uv sync --all-groups`, not the release install above.
 
-### 2. Install the version 1.0 server
+### 2. Verify the executable
 
-The [version 1.0 specification](docs/specification.md) defines an `aislop`
-executable running on CPython 3.12 or 3.13. Install the checkout into a locked
-virtual environment:
-
-```sh
-uv sync
-uv run aislop --version
+```console
+$ aislop --version
+aislop 1.0.0
 ```
 
-Stdio needs no credentials; HTTP requires the bearer token described below.
-Run AISLOP as an unprivileged user and grant that account only the filesystem
-access required for the configured roots.
+The packaged command's complete help is:
 
-### 3. Verify the server before connecting an AI
+```console
+$ aislop --help
+usage: aislop [-h] [--version] --allow-root ALLOW_ROOT
+              [--transport {stdio,http}] [--host HOST] [--port PORT]
+              [--auth-token AUTH_TOKEN]
+              [--max-request-bytes MAX_REQUEST_BYTES]
+              [--request-timeout REQUEST_TIMEOUT] [--rate-limit RATE_LIMIT]
 
-Once a package is released, confirm that the executable is the intended version:
+Run the AISLOP MCP server.
 
-```sh
-aislop --version
+options:
+  -h, --help            show this help message and exit
+  --version             show program's version number and exit
+  --allow-root ALLOW_ROOT
+                        absolute readable workspace root (repeatable)
+  --transport {stdio,http}
+  --host HOST           HTTP bind host (default: loopback)
+  --port PORT           HTTP port (default: 8000)
+  --auth-token AUTH_TOKEN
+                        HTTP bearer token (or AISLOP_AUTH_TOKEN)
+  --max-request-bytes MAX_REQUEST_BYTES
+  --request-timeout REQUEST_TIMEOUT
+  --rate-limit RATE_LIMIT
+                        requests per client per minute
 ```
 
-Do not expect normal output when the server is launched by a host: stdout carries
-MCP messages and diagnostics go to stderr.
+At least one absolute, existing `--allow-root` is required; repeat it to grant more roots. CLI values take precedence over built-in defaults. The sole environment variable is `AISLOP_AUTH_TOKEN`, and explicit `--auth-token` takes precedence over it. No configuration files are read. Defaults are stdio, `127.0.0.1:8000`, a 1,048,576-byte HTTP request limit, a 35-second HTTP timeout, and 60 requests per client per minute.
+
+Stdio needs no AISLOP credential. HTTP requires an ASCII bearer token of at least 32 printable, non-whitespace characters. A token authorizes all three tools against every allowed root in that server process: there are no narrower per-tool or per-root scopes and no multi-user identities. Prefer the environment variable because CLI arguments may appear in process listings. OS permissions still apply.
+
+AISLOP supports exactly MCP over local stdio and MCP Streamable HTTP. It does not support legacy HTTP+SSE, WebSocket, or TLS termination. Put a trusted TLS reverse proxy in front of HTTP before traffic crosses a network.
 
 ## Connect from an external AI application
 
-Version 1.0 supports local stdio and authenticated Streamable HTTP. Stdio is the
-recommended default.
+The model does not connect directly. An MCP-compatible AI application (the host) starts or contacts AISLOP, discovers its tools, and presents calls for model use. The official interoperability target and test client is the official MCP Python SDK. Host products differ in the name of their top-level server collection; the minimal conventional configurations below contain all AISLOP-specific values.
 
-The model does not connect to AISLOP by itself. You configure AISLOP in an
-**MCP-compatible host** (an AI desktop app, editor, or agent); that host becomes
-the MCP client and exposes the discovered AISLOP tools to the model.
+### Local stdio (recommended)
 
-### Local connection over stdio
-
-Use stdio when the AI host and AISLOP run on the same machine. In the host's MCP
-settings, add an entry like this after installation and replace the sample root:
+Create the example root with `mkdir -p /tmp/aislop-workspace`, then add this server to a host on macOS or Linux:
 
 ```json
 {
   "mcpServers": {
     "aislop": {
-      "command": "/absolute/path/to/aislop",
-      "args": ["--allow-root", "/absolute/path/to/workspace"]
+      "command": "aislop",
+      "args": ["--allow-root", "/tmp/aislop-workspace"]
     }
   }
 }
 ```
 
-The top-level key and exact schema vary by host, so consult the host's MCP
-documentation. Prefer an absolute executable path: GUI applications often do
-not inherit the same `PATH` as a terminal. Restart or reload the host after
-saving the configuration.
+On Windows, the equivalent supported-host entry is:
 
-AISLOP requires one or more `--allow-root` arguments. It can only read targets
-that resolve beneath those roots. For HTTP, run `aislop --transport http
---allow-root /absolute/root --auth-token <strong-secret>`, then connect to
-`http://127.0.0.1:8000/mcp` with that bearer token. The unauthenticated
-`/healthz` endpoint supports health probes.
+```json
+{
+  "mcpServers": {
+    "aislop": {
+      "command": "aislop.exe",
+      "args": ["--allow-root", "C:\\Users\\Public\\aislop-workspace"]
+    }
+  }
+}
+```
 
-### Confirm the connection
+GUI hosts may not inherit the terminal's `PATH`. If so, replace only `command` with the absolute result of `python -c "import shutil; print(shutil.which('aislop'))"`. Standard output is reserved for MCP frames and diagnostics go to standard error.
 
-After restarting the host:
+### Streamable HTTP
 
-1. open its MCP/server panel and confirm that `aislop` is connected;
-2. inspect the tools reported by the server rather than assuming their names;
-3. review the host and server logs if discovery fails; and
-4. verify the executable path, allowed-root arguments, working directory, and OS
-   filesystem permissions before retrying.
+Start the server on its default loopback address. The literal token is a tested development value, not a secret to reuse:
 
-If discovery fails, run `aislop --help` and verify the configured command and
-arguments from a terminal before reconnecting the MCP client.
+```sh
+AISLOP_AUTH_TOKEN=aislop-local-demo-token-0123456789abcdef aislop --transport http --allow-root /tmp/aislop-workspace
+```
+
+Configure an HTTP-capable host with:
+
+```json
+{
+  "mcpServers": {
+    "aislop": {
+      "type": "streamable-http",
+      "url": "http://127.0.0.1:8000/mcp",
+      "headers": {
+        "Authorization": "Bearer aislop-local-demo-token-0123456789abcdef"
+      }
+    }
+  }
+}
+```
+
+Keep a real token in the host's secret or environment facility rather than committing it. The MCP endpoint is `/mcp`. Both unauthenticated readiness endpoints (`/health` and `/healthz`) disclose only `{"status":"ok"}`. Verify one with:
+
+```sh
+curl --fail --silent http://127.0.0.1:8000/healthz
+```
+
+Restart or reload the host after saving either transport. Confirm that `aislop` is connected and advertises exactly the three tools below. If discovery fails, run `aislop --help`, then check the executable path, absolute allowed roots, working directory, token/header, endpoint, and OS permissions.
+
+### Upgrade and uninstall
+
+There is no automatic updater. Review the canonical release, upgrade with an explicit version, and verify it:
+
+```sh
+python -m pip install --upgrade aislop==1.0.0
+aislop --version
+```
+
+Version 1.0.0 is the only planned release, so this currently reinstalls or confirms it. To uninstall, stop the server, remove its host entry, and run:
+
+```sh
+python -m pip uninstall --yes aislop
+```
+
+Uninstallation does not edit host settings, virtual environments, logs, shell history, or data retained by the host. AISLOP creates no persistent configuration or index.
 
 ## Use AISLOP through the AI
 
-The version 1.0 interface exposes three read-only tools:
+Version 1.0 exposes three read-only tools: `inspect_path` reads bounded metadata, content, or directory entries; `scan_text` performs a bounded literal or RE2-compatible regex search; and `observe_changes` polls metadata changes using a process-local cursor. It exposes no MCP resources, resource templates, or prompts. Complete schemas, limits, and errors are in the [specification](docs/specification.md).
 
-- `inspect_path` returns bounded file content, a directory listing, or metadata;
-- `scan_text` performs a bounded literal or RE2-compatible regex search; and
-- `observe_changes` polls metadata changes since a process-local cursor.
+Create deterministic example data:
 
-It exposes no MCP resources, resource templates, or prompts. Complete schemas,
-limits, errors, permissions, and security boundaries are in the
-[specification](docs/specification.md). Once the initial package exists, use it
-as follows:
-
-1. install AISLOP from the release's documented source;
-2. add its documented server configuration to an MCP-compatible host;
-3. restart the host and confirm it discovers exactly the three tools above;
-4. make a specific request naming the allowed target and desired result;
-5. review the selected tool and its arguments (AISLOP does not require approval,
-   although the host may); and
-6. verify the result and supervise every action instead of confusing protocol
-   support with good judgment.
-
-A future tool call might be requested in natural language like this:
-
-```text
-Use inspect_path to read README.md beneath the configured workspace root. Return
-a short summary and tell me if the result was truncated.
+```sh
+mkdir -p /tmp/aislop-workspace
+printf 'hello protocol\n' > /tmp/aislop-workspace/sample.txt
 ```
 
-All version 1.0 operations are read-only, but returned file data leaves AISLOP's
-process and may be sent by the host to its model provider. Configure the smallest
-possible roots, begin with non-sensitive data, and independently check results.
+Successful discovery from the packaged artifact returns these real tool names and required schema fields (optional fields are omitted here only for readability):
+
+```json
+{
+  "tools": [
+    {"name": "inspect_path", "inputSchema": {"required": ["path"]}},
+    {"name": "scan_text", "inputSchema": {"required": ["path", "query"]}},
+    {"name": "observe_changes", "inputSchema": {"required": ["path"]}}
+  ],
+  "resources": [],
+  "resourceTemplates": [],
+  "prompts": []
+}
+```
+
+A valid real `tools/call` request using the documented `scan_text` schema is:
+
+```json
+{
+  "name": "scan_text",
+  "arguments": {
+    "path": "/tmp/aislop-workspace",
+    "query": "protocol",
+    "mode": "literal",
+    "case_sensitive": true,
+    "glob": "**/*",
+    "max_results": 100
+  }
+}
+```
+
+It succeeds with:
+
+```json
+{
+  "matches": [
+    {
+      "path": "/tmp/aislop-workspace/sample.txt",
+      "line": 1,
+      "column": 7,
+      "text": "hello protocol",
+      "text_truncated": false
+    }
+  ],
+  "files_scanned": 1,
+  "truncated": false
+}
+```
+
+In an AI host, the same request can be natural language:
+
+```text
+Use scan_text to find the case-sensitive literal "protocol" under
+/tmp/aislop-workspace. Return at most 100 matches.
+```
+
+Review the selected tool and arguments; the host may offer per-call approval, although AISLOP does not require it. All operations are read-only, but returned data leaves the server and may go to the host's model provider. Grant the smallest possible roots, start with non-sensitive data, and independently check results.
 
 ## Best practices in AI SLOP coding
 
