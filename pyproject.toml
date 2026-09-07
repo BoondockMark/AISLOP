@@ -8,6 +8,7 @@ license-files = ["LICENSE"]
 authors = [
     { name = "AISLOP contributors" }
 ]
+urls = { Homepage = "https://github.com/BoondockMark/AISLOP", Repository = "https://github.com/BoondockMark/AISLOP", Issues = "https://github.com/BoondockMark/AISLOP/issues" }
 keywords = ["mcp", "model-context-protocol", "filesystem"]
 classifiers = [
     "Development Status :: 4 - Beta",
