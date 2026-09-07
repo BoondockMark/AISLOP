@@ -1,8 +1,23 @@
 # AISLOP product and protocol specification
 
-**Version:** 1.0 (approved interface; implementation pending)
+**Version:** 1.0
 **Protocol:** Model Context Protocol (MCP)
-**Transport:** local stdio only
+**Transports:** local stdio; authenticated Streamable HTTP
+
+## Supported implementation stack
+
+AISLOP is implemented in Python, distributed from PyPI-compatible registries,
+and supports **CPython 3.12 and 3.13** (minimum 3.12). It uses the official
+**MCP Python SDK 1.13.x**; the package constrains the SDK to `>=1.13.1,<2` so a
+breaking SDK release cannot silently change the protocol contract. The root
+`pyproject.toml` is the authoritative package manifest and `requirements.lock`
+records the reviewed production dependency version.
+
+The SDK performs MCP initialization and advertises its tool capabilities during
+discovery. Pydantic-generated JSON Schemas validate requests before dispatch,
+while tool-domain failures use the structured `aislop.error` representation
+below. The process observes SDK shutdown and cancellation signals; the HTTP
+runner additionally handles SIGINT/SIGTERM for a graceful listener shutdown.
 
 ## Product scope
 
@@ -21,7 +36,7 @@ monitor, or autonomous agent. Results are observations, not security findings.
 
 ## Protocol conventions
 
-The host starts one AISLOP process and communicates with it using MCP over
+The host may start one AISLOP process and communicate with it using MCP over
 standard input/output. Standard output is reserved for protocol frames;
 diagnostics go to standard error. Paths may be absolute or relative to the
 process working directory. After lexical normalization and symlink resolution,
@@ -240,15 +255,20 @@ discovery therefore returns empty resource and prompt lists.
   Linux distributions with kernel 5.15 or newer.
 - **Runtime:** CPython 3.12 or 3.13. Other Python implementations and versions
   are unsupported.
-- **Deployment model:** One unprivileged local process per MCP host session,
-  installed into a virtual environment and launched by the host. Containers,
-  daemons, multi-user services, and remote deployment are unsupported.
-- **Configuration:** The executable is `aislop`; repeated
-  `--allow-root <absolute-path>` arguments define readable roots. At least one is
-  required. No network listener is created.
-- **Credentials:** None. AISLOP must not receive API keys, bearer tokens, cloud
-  credentials, or elevated OS credentials. It inherits only the launching
-  user's filesystem access and a minimal environment supplied by the host.
+- **Deployment model:** One unprivileged process installed into a virtual
+  environment. Stdio is recommended. Streamable HTTP is intended for a
+  single-user, explicitly configured deployment.
+- **Configuration:** The executable is `aislop`; repeated `--allow-root PATH`
+  arguments define readable roots and at least one is required. The default is
+  stdio. `--transport http` serves Streamable HTTP at `/mcp` and health probes
+  at `/health` and `/healthz`. HTTP binds to `127.0.0.1:8000` by default.
+- **HTTP security:** HTTP always requires a bearer token supplied by
+  `--auth-token` or `AISLOP_AUTH_TOKEN`. Non-loopback binds additionally require
+  at least 32 token characters. Request bodies default to a 1 MiB maximum,
+  requests time out after 35 seconds, and tool work retains its 30-second
+  deadline. Health checks deliberately require no authentication and reveal
+  only `{"status":"ok"}`. Deploy TLS at a trusted reverse proxy before traffic
+  crosses a network; AISLOP itself does not terminate TLS.
 - **Trust boundaries:** The host and user are trusted to choose roots and review
   model requests. The model, tool arguments, files within roots, filenames, and
   file contents are untrusted. The OS process boundary and root/cap enforcement
@@ -261,8 +281,8 @@ discovery therefore returns empty resource and prompt lists.
 
 ## Deferred beyond 1.0
 
-The following are explicitly out of scope: Streamable HTTP and every other
-network transport; authentication and multi-user authorization; write, delete,
+The following are explicitly out of scope: network transports other than
+Streamable HTTP; multi-user authorization; write, delete,
 rename, command-execution, and version-control tools; live push notifications
 and persistent watchers; persistent indexes or cursor state; MCP resources and
 prompts; OCR, image, audio, microphone, camera, and network inspection; malware,
@@ -270,4 +290,3 @@ secret, dependency, semantic, or vulnerability scanning; archive traversal;
 non-UTF-8 decoding; ignore-file semantics; remote filesystems and cloud storage;
 plugins; telemetry; automatic updates; container/server deployment; and support
 for mobile OSes, WSL, BSD, Python 3.11 or earlier, or Python 3.14 or later.
-

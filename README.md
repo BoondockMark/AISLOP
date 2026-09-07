@@ -39,46 +39,36 @@ same excitement.
 
 ## Project status
 
-**There is no installable software in this repository yet.** The repository
-currently contains this README and no executable, package manifest, MCP server,
-or published release. Consequently, nobody can honestly install, connect to, or
-use AISLOP today.
-
-This limitation is documented rather than disguised behind a plausible-looking
-command that installs an unrelated package from the internet. Once Codex
-produces an initial release, this section will be updated with the real package
-name, executable, transport, and configuration—assuming that happens before
-maintenance ends.
+AISLOP now has a Python package and MCP server implementation. It supports
+CPython 3.12 and 3.13 and the official MCP Python SDK 1.13.x. The source checkout
+can be installed with `uv sync`; no claim is made that a public package has been
+published yet.
 
 ## Set up the server
 
-> [!IMPORTANT]
-> The commands in this section describe the setup contract for a future AISLOP
-> release. They are deliberately marked as placeholders because the repository
-> does not contain a server executable yet.
-
-### 1. Acquire the source-shaped placeholder
+### 1. Acquire the source
 
 ```sh
 git clone <repository-url>
 cd AISLOP
 ```
 
-Replace `<repository-url>` with the clone URL for this repository. That installs
-nothing, but it does provide a local copy of the disclaimer, which is currently
-the complete AISLOP experience.
+Replace `<repository-url>` with the clone URL for this repository.
 
-### 2. Prepare for the version 1.0 server
+### 2. Install the version 1.0 server
 
-The approved [version 1.0 specification](docs/specification.md) defines a local
-`aislop` executable running on CPython 3.12 or 3.13 over **stdio only**. Windows
-11, macOS 13+, and glibc-based Linux with kernel 5.15+ are supported. No package
-is published yet, so there is still no valid installation command; do not guess
-a package name. A tagged release must supply and document the package before
-this setup can be completed.
+The [version 1.0 specification](docs/specification.md) defines an `aislop`
+executable running on CPython 3.12 or 3.13. Install the checkout into a locked
+virtual environment:
 
-AISLOP 1.0 needs no application credentials. Run it as an unprivileged user and
-grant that account only the filesystem access required for the configured roots.
+```sh
+uv sync
+uv run aislop --version
+```
+
+Stdio needs no credentials; HTTP requires the bearer token described below.
+Run AISLOP as an unprivileged user and grant that account only the filesystem
+access required for the configured roots.
 
 ### 3. Verify the server before connecting an AI
 
@@ -93,9 +83,8 @@ MCP messages and diagnostics go to stderr.
 
 ## Connect from an external AI application
 
-Version 1.0 uses local stdio. The implementation is not yet published, so the
-configuration below documents the approved contract rather than a currently
-runnable server.
+Version 1.0 supports local stdio and authenticated Streamable HTTP. Stdio is the
+recommended default.
 
 The model does not connect to AISLOP by itself. You configure AISLOP in an
 **MCP-compatible host** (an AI desktop app, editor, or agent); that host becomes
@@ -122,9 +111,11 @@ documentation. Prefer an absolute executable path: GUI applications often do
 not inherit the same `PATH` as a terminal. Restart or reload the host after
 saving the configuration.
 
-AISLOP requires one or more `--allow-root` arguments and no credentials. It can
-only read targets that resolve beneath those roots. Streamable HTTP, remote
-deployment, and authentication are explicitly deferred beyond version 1.0.
+AISLOP requires one or more `--allow-root` arguments. It can only read targets
+that resolve beneath those roots. For HTTP, run `aislop --transport http
+--allow-root /absolute/root --auth-token <strong-secret>`, then connect to
+`http://127.0.0.1:8000/mcp` with that bearer token. The unauthenticated
+`/healthz` endpoint supports health probes.
 
 ### Confirm the connection
 
@@ -136,13 +127,12 @@ After restarting the host:
 4. verify the executable path, allowed-root arguments, working directory, and OS
    filesystem permissions before retrying.
 
-Until the initial release supplies real values, do not paste the placeholder
-configurations above into an MCP client and expect them to work.
+If discovery fails, run `aislop --help` and verify the configured command and
+arguments from a terminal before reconnecting the MCP client.
 
 ## Use AISLOP through the AI
 
-The implementation is pending, but the version 1.0 interface is fixed. It exposes
-three read-only tools:
+The version 1.0 interface exposes three read-only tools:
 
 - `inspect_path` returns bounded file content, a directory listing, or metadata;
 - `scan_text` performs a bounded literal or RE2-compatible regex search; and
@@ -243,5 +233,4 @@ available language model and continue the proud AISLOP tradition.
 
 ## License
 
-No license has been selected yet. This is not legal advice; it is barely a
-README.
+AISLOP is available under the MIT License. See [LICENSE](LICENSE).
