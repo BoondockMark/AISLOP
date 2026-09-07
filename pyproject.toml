@@ -4,6 +4,7 @@ version = "1.0.0"
 description = "A bounded, read-only workspace observation MCP server"
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "AISLOP contributors" }
 ]
