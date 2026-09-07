@@ -9,6 +9,8 @@ import json
 import logging
 import os
 import sys
+import time
+from collections import defaultdict, deque
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -21,6 +23,8 @@ from .core import AISLOPError, Workspace
 
 LOG = logging.getLogger("aislop")
 TIMEOUT = 30
+MAX_PATH_CHARS = 4096
+MAX_GLOB_CHARS = 1024
 
 
 def create_server(workspace: Workspace, *, host: str = "127.0.0.1", port: int = 8000) -> FastMCP:
@@ -48,7 +52,7 @@ def create_server(workspace: Workspace, *, host: str = "127.0.0.1", port: int = 
 
     @server.tool()
     async def inspect_path(
-        path: Annotated[str, Field(min_length=1)],
+        path: Annotated[str, Field(min_length=1, max_length=MAX_PATH_CHARS)],
         include_content: bool = False,
         max_bytes: Annotated[int, Field(ge=1, le=1_048_576)] = 65_536,
         max_entries: Annotated[int, Field(ge=1, le=1000)] = 200,
@@ -64,11 +68,11 @@ def create_server(workspace: Workspace, *, host: str = "127.0.0.1", port: int = 
 
     @server.tool()
     async def scan_text(
-        path: Annotated[str, Field(min_length=1)],
+        path: Annotated[str, Field(min_length=1, max_length=MAX_PATH_CHARS)],
         query: Annotated[str, Field(min_length=1, max_length=4096)],
         mode: Annotated[str, Field(pattern="^(literal|regex)$")] = "literal",
         case_sensitive: bool = True,
-        glob: str = "**/*",
+        glob: Annotated[str, Field(min_length=1, max_length=MAX_GLOB_CHARS)] = "**/*",
         max_results: Annotated[int, Field(ge=1, le=1000)] = 100,
     ) -> dict[str, Any]:
         """Search regular UTF-8 files with a literal or RE2-compatible pattern."""
@@ -84,9 +88,9 @@ def create_server(workspace: Workspace, *, host: str = "127.0.0.1", port: int = 
 
     @server.tool()
     async def observe_changes(
-        path: Annotated[str, Field(min_length=1)],
-        cursor: str | None = None,
-        glob: str = "**/*",
+        path: Annotated[str, Field(min_length=1, max_length=MAX_PATH_CHARS)],
+        cursor: Annotated[str | None, Field(min_length=16, max_length=128)] = None,
+        glob: Annotated[str, Field(min_length=1, max_length=MAX_GLOB_CHARS)] = "**/*",
         max_changes: Annotated[int, Field(ge=1, le=1000)] = 200,
     ) -> dict[str, Any]:
         """Create a metadata cursor or compare and replace an existing cursor."""
@@ -100,8 +104,10 @@ def create_server(workspace: Workspace, *, host: str = "127.0.0.1", port: int = 
 class HTTPPolicy:
     """ASGI middleware for bearer auth, body limits, health, and request timeout."""
 
-    def __init__(self, app, token: str, max_body: int, timeout: float):
+    def __init__(self, app, token: str, max_body: int, timeout: float, rate_limit: int = 60):
         self.app, self.token, self.max_body, self.timeout = app, token, max_body, timeout
+        self.rate_limit = rate_limit
+        self._requests: dict[str, deque[float]] = defaultdict(deque)
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
@@ -113,6 +119,15 @@ class HTTPPolicy:
         expected = b"Bearer " + self.token.encode()
         if not hmac.compare_digest(headers.get(b"authorization", b""), expected):
             return await _response(send, 401, b'{"error":"unauthorized"}')
+        client = scope.get("client")
+        identity = str(client[0]) if client else "unknown"
+        now = time.monotonic()
+        recent = self._requests[identity]
+        while recent and recent[0] <= now - 60:
+            recent.popleft()
+        if len(recent) >= self.rate_limit:
+            return await _response(send, 429, b'{"error":"rate limit exceeded"}')
+        recent.append(now)
         length = headers.get(b"content-length")
         if length:
             try:
@@ -151,6 +166,8 @@ async def _response(send, status: int, body: bytes):
             "headers": [
                 (b"content-type", b"application/json"),
                 (b"content-length", str(len(body)).encode()),
+                (b"cache-control", b"no-store"),
+                (b"x-content-type-options", b"nosniff"),
             ],
         }
     )
@@ -179,6 +196,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--auth-token", help="HTTP bearer token (or AISLOP_AUTH_TOKEN)")
     result.add_argument("--max-request-bytes", type=int, default=1_048_576)
     result.add_argument("--request-timeout", type=float, default=35.0)
+    result.add_argument("--rate-limit", type=int, default=60, help="requests per client per minute")
     return result
 
 
@@ -187,8 +205,8 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(message)s")
     if any(not root.is_absolute() for root in args.allow_root):
         parser().error("--allow-root values must be absolute paths")
-    if args.max_request_bytes < 1 or args.request_timeout <= 0:
-        parser().error("HTTP size and timeout limits must be positive")
+    if args.max_request_bytes < 1 or args.request_timeout <= 0 or args.rate_limit < 1:
+        parser().error("HTTP size, timeout, and rate limits must be positive")
     try:
         workspace = Workspace(args.allow_root)
     except (OSError, ValueError) as exc:
@@ -200,12 +218,26 @@ def main(argv: list[str] | None = None) -> int:
     token = args.auth_token or os.environ.get("AISLOP_AUTH_TOKEN")
     if not token:
         parser().error("HTTP requires --auth-token or AISLOP_AUTH_TOKEN")
-    if args.host not in {"127.0.0.1", "::1", "localhost"} and len(token) < 32:
-        parser().error("non-loopback HTTP requires a bearer token of at least 32 characters")
+    try:
+        token.encode("ascii")
+    except UnicodeEncodeError:
+        parser().error("HTTP bearer token must be ASCII")
+    if (
+        len(token) < 32
+        or not token.isprintable()
+        or any(character.isspace() for character in token)
+    ):
+        parser().error(
+            "HTTP requires a bearer token of at least 32 printable non-whitespace characters"
+        )
     import uvicorn
 
     app = HTTPPolicy(
-        server.streamable_http_app(), token, args.max_request_bytes, args.request_timeout
+        server.streamable_http_app(),
+        token,
+        args.max_request_bytes,
+        args.request_timeout,
+        args.rate_limit,
     )
     uvicorn.run(app, host=args.host, port=args.port, log_config=None)
     return 0

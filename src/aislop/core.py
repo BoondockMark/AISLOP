@@ -15,6 +15,8 @@ from typing import Any
 
 FILE_LIMIT = 10_000
 BYTE_LIMIT = 100 * 1024 * 1024
+SCAN_FILE_LIMIT = 10 * 1024 * 1024
+MATCH_TEXT_LIMIT = 4096
 
 
 class AISLOPError(Exception):
@@ -126,6 +128,8 @@ class Workspace:
                 total_bytes += file.stat().st_size
                 if files_scanned > FILE_LIMIT or total_bytes > BYTE_LIMIT:
                     raise AISLOPError("LIMIT_EXCEEDED", "scan traversal limit exceeded", path=path)
+                if file.stat().st_size > SCAN_FILE_LIMIT:
+                    continue
                 try:
                     text = file.read_text(encoding="utf-8")
                 except UnicodeDecodeError:
@@ -138,7 +142,8 @@ class Workspace:
                                 "path": self.display(file),
                                 "line": number,
                                 "column": found.start() + 1,
-                                "text": line,
+                                "text": line[:MATCH_TEXT_LIMIT],
+                                "text_truncated": len(line) > MATCH_TEXT_LIMIT,
                             }
                         )
                         if len(matches) >= max_results:

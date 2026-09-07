@@ -2,27 +2,27 @@
 
 ## Supported versions
 
-No versions are supported with security fixes. Version 1.0.0 is the initial and
-only planned release, and it becomes unmaintained when published.
-
 | Version | Security fixes |
 | --- | --- |
-| 1.0.0 | No |
-| Any other version | No |
+| Latest 1.x release | Yes |
+| Older releases and unreleased source snapshots | No |
 
-Known vulnerabilities may be documented without a patch, advisory deadline, or
-coordinated release. Users are responsible for deciding whether to stop using,
-isolate, patch, or fork the package.
+Upgrade to the latest release before reporting a defect. Security fixes may be
+released without preserving insecure behavior.
 
 ## Reporting a vulnerability
 
-Do not disclose an unreported vulnerability in a public issue or pull request.
-Use the repository's **Security** tab to submit a private vulnerability report
-to the repository owner. If private reporting is unavailable, do not send
-sensitive details through a public channel; report only that no private channel
-is available.
+Do **not** open a public issue. Use GitHub's **Security** tab and select
+**Report a vulnerability** to submit a private advisory. Include the affected
+version, configuration and transport, impact, reproduction steps, and any
+suggested mitigation. Do not include real credentials or private workspace data.
 
-The repository owner receives and triages reports. Receipt does not promise a
-response, embargo, fix, advisory, CVE, or release. The owner may publish an
-advisory so users can make an informed risk decision even when no fix will be
-provided.
+Maintainers aim to acknowledge a report within 3 business days, provide an
+initial assessment within 10 business days, and coordinate disclosure after a
+fix is available. If the Security tab is unavailable, contact the repository
+owner privately through the contact method on their GitHub profile. Please allow
+90 days before disclosure, unless a shorter timeline is mutually agreed or
+active exploitation requires an accelerated response.
+
+The threat model, deployment requirements, and release security gate are in
+[`docs/security.md`](docs/security.md).

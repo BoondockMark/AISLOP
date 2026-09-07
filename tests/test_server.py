@@ -23,7 +23,13 @@ async def request(app, *, path="/mcp", headers=(), body=b""):  # type: ignore[no
     async def send(message):  # type: ignore[no-untyped-def]
         sent.append(message)
 
-    scope = {"type": "http", "path": path, "headers": list(headers), "method": "POST"}
+    scope = {
+        "type": "http",
+        "path": path,
+        "headers": list(headers),
+        "method": "POST",
+        "client": ("127.0.0.1", 1234),
+    }
     await app(scope, receive, send)
     status = next(item["status"] for item in sent if item["type"] == "http.response.start")
     payload = b"".join(item.get("body", b"") for item in sent)
@@ -60,6 +66,17 @@ async def test_http_timeout() -> None:
 
 
 @pytest.mark.asyncio
+async def test_http_rate_limit_does_not_trust_forwarded_identity() -> None:
+    async def ok(scope, receive, send):  # type: ignore[no-untyped-def]
+        await server_module._response(send, 200, b"{}")
+
+    app = HTTPPolicy(ok, "token", 10, 1, rate_limit=1)
+    auth = (b"authorization", b"Bearer token")
+    assert (await request(app, headers=[auth, (b"x-forwarded-for", b"one")]))[0] == 200
+    assert (await request(app, headers=[auth, (b"x-forwarded-for", b"two")]))[0] == 429
+
+
+@pytest.mark.asyncio
 async def test_every_advertised_capability_and_tool_response(tmp_path: Path) -> None:
     (tmp_path / "file.txt").write_text("needle", encoding="utf-8")
     server = create_server(Workspace([tmp_path]))
@@ -82,6 +99,10 @@ async def test_tool_failure_timeout_and_malformed_arguments(
         await server.call_tool("inspect_path", {"path": str(tmp_path.parent)})
     with pytest.raises(Exception, match="validation|path|extra"):
         await server.call_tool("inspect_path", {"path": "", "unknown": True})
+    with pytest.raises(Exception, match="validation|path"):
+        await server.call_tool("inspect_path", {"path": "x" * 4097})
+    with pytest.raises(Exception, match="validation|glob"):
+        await server.call_tool("scan_text", {"path": str(tmp_path), "query": "x", "glob": ""})
 
     async def slow(**kwargs):  # type: ignore[no-untyped-def]
         await asyncio.sleep(0.1)
