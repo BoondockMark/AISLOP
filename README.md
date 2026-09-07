@@ -52,6 +52,9 @@ The supported matrix is deliberately narrow:
 
 PyPy, other Python versions, 32-bit systems, mobile platforms, WSL, BSD, and musl-based Linux are unsupported. CI tests both supported Python versions on Windows, macOS, and Linux. AISLOP uses the official MCP Python SDK (`mcp>=1.13.1,<2`); its wheel is platform-independent.
 
+Release history is recorded in the [changelog](CHANGELOG.md), and the protected candidate,
+acceptance, publication, and rollback procedure is in the [release checklist](RELEASING.md).
+
 ## Set up the server
 
 ### 1. Install the published package
