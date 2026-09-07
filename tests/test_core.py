@@ -32,3 +32,26 @@ def test_root_escape_and_change_cursor(tmp_path: Path):
     with pytest.raises(AISLOPError) as expired:
         asyncio.run(workspace.observe_changes(str(tmp_path), baseline["cursor"]))
     assert expired.value.payload["code"] == "CURSOR_EXPIRED"
+
+
+def test_inspect_reports_safe_symlink_without_following_it(tmp_path: Path):
+    target = tmp_path / "target.txt"
+    target.write_text("secret", encoding="utf-8")
+    link = tmp_path / "link.txt"
+    link.symlink_to(target)
+
+    inspected = asyncio.run(Workspace([tmp_path]).inspect_path(str(link), include_content=True))
+
+    assert inspected["path"] == str(link)
+    assert inspected["kind"] == "symlink"
+    assert "content" not in inspected
+
+
+@pytest.mark.parametrize("query", [r"(a)\1", r"(?=a)", r"(?P<n>a)", r"a++"])
+def test_scan_rejects_regex_syntax_not_supported_by_re2(tmp_path: Path, query: str):
+    (tmp_path / "input.txt").write_text("aaaa", encoding="utf-8")
+
+    with pytest.raises(AISLOPError) as caught:
+        asyncio.run(Workspace([tmp_path]).scan_text(str(tmp_path), query, mode="regex"))
+
+    assert caught.value.payload["code"] == "INVALID_PATTERN"

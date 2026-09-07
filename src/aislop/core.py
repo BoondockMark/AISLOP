@@ -41,10 +41,15 @@ class Workspace:
         self.snapshots: dict[str, Snapshot] = {}
 
     def resolve(self, value: str) -> Path:
-        candidate = Path(value).expanduser().resolve(strict=False)
-        if not any(candidate == root or candidate.is_relative_to(root) for root in self.roots):
+        # Keep the lexical path for lstat()/reporting so an in-root symlink is
+        # observable as a symlink, but authorize its fully resolved target.
+        # Authorizing only the lexical path would allow an in-root symlink to
+        # escape an allowed root.
+        candidate = Path(value).expanduser().absolute()
+        resolved = candidate.resolve(strict=False)
+        if not any(resolved == root or resolved.is_relative_to(root) for root in self.roots):
             raise AISLOPError("OUTSIDE_ROOT", "path is outside configured roots", path=value)
-        if not candidate.exists():
+        if not candidate.exists() and not candidate.is_symlink():
             raise AISLOPError("NOT_FOUND", "path does not exist", path=value)
         return candidate
 
@@ -63,11 +68,11 @@ class Workspace:
                 "modified_at": datetime.fromtimestamp(info.st_mtime, timezone.utc).isoformat(),
                 "truncated": False,
             }
-            if target.is_dir():
+            if kind == "directory":
                 entries = await asyncio.to_thread(lambda: sorted(p.name for p in target.iterdir()))
                 result["truncated"] = len(entries) > max_entries
                 result["entries"] = entries[:max_entries]
-            elif include_content and target.is_file():
+            elif include_content and kind == "file":
                 raw = await asyncio.to_thread(_read_bounded, target, max_bytes)
                 result["truncated"] = len(raw) > max_bytes
                 try:
@@ -162,8 +167,17 @@ def _compile(query: str, mode: str, case_sensitive: bool):
     if mode == "literal":
         query = re.escape(query)
     else:
-        # Constructs absent from RE2 are rejected even though stdlib re executes the subset.
-        if re.search(r"\\[1-9]|\(\?<?[=!] |\(\?P=", query, re.VERBOSE):
+        # Python's engine accepts constructs that RE2 deliberately excludes.
+        # Reject them before compilation so clients get the promised portable
+        # RE2-compatible grammar rather than Python-specific behavior.
+        unsupported = (
+            r"\\[1-9]",             # numeric backreferences
+            r"\\g[<{]",            # explicit backreferences
+            r"\(\?P[<=]",           # named groups/backreferences
+            r"\(\?(?:<?[=!]|\(|>)", # lookaround, conditionals, atomic groups
+            r"(?:[*+?]|\{\d+(?:,\d*)?\})\+",  # possessive quantifiers
+        )
+        if any(re.search(fragment, query) for fragment in unsupported):
             raise AISLOPError("INVALID_PATTERN", "pattern uses syntax unsupported by RE2")
     try:
         return re.compile(query, flags)
