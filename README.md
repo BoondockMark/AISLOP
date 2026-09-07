@@ -15,9 +15,10 @@ Every function in AISLOP was produced by ChatGPT's Codex; my role was to ask for
 things, accept the results, and maintain an unwavering belief that green checks
 are a substitute for knowledge.
 
-I also have **no plans to maintain AISLOP after its initial release**. The first
-release is therefore also the long-term-support release, the sunset release,
-and—unless an AI takes pity on it—the final release.
+I also have **no plans to maintain AISLOP after its initial release**. In policy
+terms, that means version 1.0.0 is the only planned release and receives no bug,
+compatibility, or security fixes. See the [maintenance and release policy](MAINTENANCE.md)
+for the deliberately short lifecycle.
 
 Use this project at your own risk. If it works, Codex deserves the credit. If it
 breaks, the repository has achieved its intended state.
@@ -227,10 +228,13 @@ and [AI Slop: The Future of Software Engineering](https://davidkcaudill.medium.c
 
 There is none.
 
-Issues may be opened for archival purposes. Pull requests may be admired from a
-respectful distance. For troubleshooting, paste the error into the next
-available language model and continue the proud AISLOP tradition.
+Outside contributions are not accepted, so the project does not maintain
+contribution or community conduct policies. Issues and pull requests may be
+closed without review. For troubleshooting, paste the error into the next
+available language model and continue the proud AISLOP tradition. Security
+reports are handled as described in the [security policy](SECURITY.md).
 
 ## License
 
-AISLOP is available under the MIT License. See [LICENSE](LICENSE).
+AISLOP is available under the [MIT License](LICENSE). Dependency and bundling
+information is recorded in [third-party notices](THIRD_PARTY_NOTICES.md).
