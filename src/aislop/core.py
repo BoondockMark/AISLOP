@@ -9,7 +9,7 @@ import re
 import secrets
 import stat
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +20,9 @@ BYTE_LIMIT = 100 * 1024 * 1024
 class AISLOPError(Exception):
     """An error safe to expose to an MCP client."""
 
-    def __init__(self, code: str, message: str, *, retryable: bool = False, path: str | None = None):
+    def __init__(
+        self, code: str, message: str, *, retryable: bool = False, path: str | None = None
+    ):
         super().__init__(message)
         self.payload = {"code": code, "message": message, "retryable": retryable}
         if path is not None:
@@ -57,15 +59,30 @@ class Workspace:
     def display(path: Path) -> str:
         return str(path)
 
-    async def inspect_path(self, path: str, include_content: bool = False,
-                           max_bytes: int = 65536, max_entries: int = 200) -> dict[str, Any]:
+    async def inspect_path(
+        self,
+        path: str,
+        include_content: bool = False,
+        max_bytes: int = 65536,
+        max_entries: int = 200,
+    ) -> dict[str, Any]:
         target = self.resolve(path)
         try:
             info = await asyncio.to_thread(target.lstat)
-            kind = "symlink" if target.is_symlink() else "directory" if target.is_dir() else "file" if target.is_file() else "other"
+            kind = (
+                "symlink"
+                if target.is_symlink()
+                else "directory"
+                if target.is_dir()
+                else "file"
+                if target.is_file()
+                else "other"
+            )
             result: dict[str, Any] = {
-                "path": self.display(target), "kind": kind, "size": info.st_size,
-                "modified_at": datetime.fromtimestamp(info.st_mtime, timezone.utc).isoformat(),
+                "path": self.display(target),
+                "kind": kind,
+                "size": info.st_size,
+                "modified_at": datetime.fromtimestamp(info.st_mtime, UTC).isoformat(),
                 "truncated": False,
             }
             if kind == "directory":
@@ -78,7 +95,9 @@ class Workspace:
                 try:
                     result["content"] = raw[:max_bytes].decode("utf-8")
                 except UnicodeDecodeError as exc:
-                    raise AISLOPError("NOT_TEXT", "file is not valid UTF-8 text", path=path) from exc
+                    raise AISLOPError(
+                        "NOT_TEXT", "file is not valid UTF-8 text", path=path
+                    ) from exc
             return result
         except AISLOPError:
             raise
@@ -87,9 +106,15 @@ class Workspace:
         except OSError as exc:
             raise AISLOPError("IO_ERROR", str(exc), retryable=True, path=path) from exc
 
-    async def scan_text(self, path: str, query: str, mode: str = "literal",
-                        case_sensitive: bool = True, glob: str = "**/*",
-                        max_results: int = 100) -> dict[str, Any]:
+    async def scan_text(
+        self,
+        path: str,
+        query: str,
+        mode: str = "literal",
+        case_sensitive: bool = True,
+        glob: str = "**/*",
+        max_results: int = 100,
+    ) -> dict[str, Any]:
         target = self.resolve(path)
         try:
             pattern = _compile(query, mode, case_sensitive)
@@ -108,10 +133,20 @@ class Workspace:
                 for number, line in enumerate(text.splitlines(), 1):
                     found = pattern.search(line)
                     if found:
-                        matches.append({"path": self.display(file), "line": number,
-                                        "column": found.start() + 1, "text": line})
+                        matches.append(
+                            {
+                                "path": self.display(file),
+                                "line": number,
+                                "column": found.start() + 1,
+                                "text": line,
+                            }
+                        )
                         if len(matches) >= max_results:
-                            return {"matches": matches, "files_scanned": files_scanned, "truncated": True}
+                            return {
+                                "matches": matches,
+                                "files_scanned": files_scanned,
+                                "truncated": True,
+                            }
             return {"matches": matches, "files_scanned": files_scanned, "truncated": False}
         except AISLOPError:
             raise
@@ -120,25 +155,42 @@ class Workspace:
         except OSError as exc:
             raise AISLOPError("IO_ERROR", str(exc), retryable=True, path=path) from exc
 
-    async def observe_changes(self, path: str, cursor: str | None = None,
-                              glob: str = "**/*", max_changes: int = 200) -> dict[str, Any]:
+    async def observe_changes(
+        self, path: str, cursor: str | None = None, glob: str = "**/*", max_changes: int = 200
+    ) -> dict[str, Any]:
         target = self.resolve(path)
         current = await asyncio.to_thread(_snapshot, target, glob)
         old: dict[str, tuple[int, int, int]] = {}
         if cursor is not None:
             saved = self.snapshots.pop(cursor, None)
             if saved is None or saved.root != target:
-                raise AISLOPError("CURSOR_EXPIRED", "cursor is unknown, expired, or belongs to another path")
+                raise AISLOPError(
+                    "CURSOR_EXPIRED", "cursor is unknown, expired, or belongs to another path"
+                )
             old = saved.values
-        changes = ([{"path": p, "type": "created"} for p in current.keys() - old.keys()] +
-                   [{"path": p, "type": "deleted"} for p in old.keys() - current.keys()] +
-                   [{"path": p, "type": "modified"} for p in current.keys() & old.keys() if current[p] != old[p]]) if cursor else []
+        changes = (
+            (
+                [{"path": p, "type": "created"} for p in current.keys() - old.keys()]
+                + [{"path": p, "type": "deleted"} for p in old.keys() - current.keys()]
+                + [
+                    {"path": p, "type": "modified"}
+                    for p in current.keys() & old.keys()
+                    if current[p] != old[p]
+                ]
+            )
+            if cursor
+            else []
+        )
         changes.sort(key=lambda item: (item["path"], item["type"]))
         new_cursor = secrets.token_urlsafe(24)
         self.snapshots[new_cursor] = Snapshot(target, current)
         while len(self.snapshots) > 256:
             self.snapshots.pop(next(iter(self.snapshots)))
-        return {"cursor": new_cursor, "changes": changes[:max_changes], "truncated": len(changes) > max_changes}
+        return {
+            "cursor": new_cursor,
+            "changes": changes[:max_changes],
+            "truncated": len(changes) > max_changes,
+        }
 
 
 def _read_bounded(path: Path, limit: int) -> bytes:
@@ -171,10 +223,10 @@ def _compile(query: str, mode: str, case_sensitive: bool):
         # Reject them before compilation so clients get the promised portable
         # RE2-compatible grammar rather than Python-specific behavior.
         unsupported = (
-            r"\\[1-9]",             # numeric backreferences
-            r"\\g[<{]",            # explicit backreferences
-            r"\(\?P[<=]",           # named groups/backreferences
-            r"\(\?(?:<?[=!]|\(|>)", # lookaround, conditionals, atomic groups
+            r"\\[1-9]",  # numeric backreferences
+            r"\\g[<{]",  # explicit backreferences
+            r"\(\?P[<=]",  # named groups/backreferences
+            r"\(\?(?:<?[=!]|\(|>)",  # lookaround, conditionals, atomic groups
             r"(?:[*+?]|\{\d+(?:,\d*)?\})\+",  # possessive quantifiers
         )
         if any(re.search(fragment, query) for fragment in unsupported):

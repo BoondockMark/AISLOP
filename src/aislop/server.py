@@ -26,8 +26,12 @@ TIMEOUT = 30
 def create_server(workspace: Workspace, *, host: str = "127.0.0.1", port: int = 8000) -> FastMCP:
     """Create the SDK server and register exactly the specified three tools."""
     server = FastMCP(
-        "AISLOP", instructions="Bounded, read-only workspace inspection.",
-        host=host, port=port, streamable_http_path="/mcp", stateless_http=True,
+        "AISLOP",
+        instructions="Bounded, read-only workspace inspection.",
+        host=host,
+        port=port,
+        streamable_http_path="/mcp",
+        stateless_http=True,
         json_response=True,
     )
 
@@ -44,34 +48,51 @@ def create_server(workspace: Workspace, *, host: str = "127.0.0.1", port: int = 
 
     @server.tool()
     async def inspect_path(
-        path: Annotated[str, Field(min_length=1)], include_content: bool = False,
+        path: Annotated[str, Field(min_length=1)],
+        include_content: bool = False,
         max_bytes: Annotated[int, Field(ge=1, le=1_048_576)] = 65_536,
         max_entries: Annotated[int, Field(ge=1, le=1000)] = 200,
     ) -> dict[str, Any]:
         """Return metadata and optionally bounded content or directory entries."""
-        return await invoke(workspace.inspect_path, path=path, include_content=include_content,
-                            max_bytes=max_bytes, max_entries=max_entries)
+        return await invoke(
+            workspace.inspect_path,
+            path=path,
+            include_content=include_content,
+            max_bytes=max_bytes,
+            max_entries=max_entries,
+        )
 
     @server.tool()
     async def scan_text(
         path: Annotated[str, Field(min_length=1)],
         query: Annotated[str, Field(min_length=1, max_length=4096)],
         mode: Annotated[str, Field(pattern="^(literal|regex)$")] = "literal",
-        case_sensitive: bool = True, glob: str = "**/*",
+        case_sensitive: bool = True,
+        glob: str = "**/*",
         max_results: Annotated[int, Field(ge=1, le=1000)] = 100,
     ) -> dict[str, Any]:
         """Search regular UTF-8 files with a literal or RE2-compatible pattern."""
-        return await invoke(workspace.scan_text, path=path, query=query, mode=mode,
-                            case_sensitive=case_sensitive, glob=glob, max_results=max_results)
+        return await invoke(
+            workspace.scan_text,
+            path=path,
+            query=query,
+            mode=mode,
+            case_sensitive=case_sensitive,
+            glob=glob,
+            max_results=max_results,
+        )
 
     @server.tool()
     async def observe_changes(
-        path: Annotated[str, Field(min_length=1)], cursor: str | None = None,
-        glob: str = "**/*", max_changes: Annotated[int, Field(ge=1, le=1000)] = 200,
+        path: Annotated[str, Field(min_length=1)],
+        cursor: str | None = None,
+        glob: str = "**/*",
+        max_changes: Annotated[int, Field(ge=1, le=1000)] = 200,
     ) -> dict[str, Any]:
         """Create a metadata cursor or compare and replace an existing cursor."""
-        return await invoke(workspace.observe_changes, path=path, cursor=cursor,
-                            glob=glob, max_changes=max_changes)
+        return await invoke(
+            workspace.observe_changes, path=path, cursor=cursor, glob=glob, max_changes=max_changes
+        )
 
     return server
 
@@ -123,21 +144,35 @@ class _BodyTooLarge(Exception):
 
 
 async def _response(send, status: int, body: bytes):
-    await send({"type": "http.response.start", "status": status,
-                "headers": [(b"content-type", b"application/json"),
-                            (b"content-length", str(len(body)).encode())]})
+    await send(
+        {
+            "type": "http.response.start",
+            "status": status,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode()),
+            ],
+        }
+    )
     await send({"type": "http.response.body", "body": body})
 
 
 def _error_json(code: str, message: str, retryable: bool = False) -> str:
-    return json.dumps({"code": code, "message": message, "retryable": retryable}, separators=(",", ":"))
+    return json.dumps(
+        {"code": code, "message": message, "retryable": retryable}, separators=(",", ":")
+    )
 
 
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(prog="aislop", description="Run the AISLOP MCP server.")
     result.add_argument("--version", action="version", version=f"aislop {__version__}")
-    result.add_argument("--allow-root", action="append", type=Path, required=True,
-                        help="absolute readable workspace root (repeatable)")
+    result.add_argument(
+        "--allow-root",
+        action="append",
+        type=Path,
+        required=True,
+        help="absolute readable workspace root (repeatable)",
+    )
     result.add_argument("--transport", choices=("stdio", "http"), default="stdio")
     result.add_argument("--host", default="127.0.0.1", help="HTTP bind host (default: loopback)")
     result.add_argument("--port", type=int, default=8000, help="HTTP port (default: 8000)")
@@ -168,7 +203,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.host not in {"127.0.0.1", "::1", "localhost"} and len(token) < 32:
         parser().error("non-loopback HTTP requires a bearer token of at least 32 characters")
     import uvicorn
-    app = HTTPPolicy(server.streamable_http_app(), token, args.max_request_bytes, args.request_timeout)
+
+    app = HTTPPolicy(
+        server.streamable_http_app(), token, args.max_request_bytes, args.request_timeout
+    )
     uvicorn.run(app, host=args.host, port=args.port, log_config=None)
     return 0
 
