@@ -1,0 +1,3 @@
+# Locked direct runtime dependency set for CPython 3.12/3.13.
+# Regenerate after dependency review with: uv pip compile pyproject.toml -o requirements.lock
+mcp[cli]==1.13.1
