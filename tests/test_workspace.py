@@ -90,6 +90,13 @@ def test_traversal_limit_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert caught.value.payload["code"] == "LIMIT_EXCEEDED"
 
 
+def test_scan_truncates_untrusted_output_lines(tmp_path: Path) -> None:
+    (tmp_path / "long.txt").write_text("needle" + "x" * 5000, encoding="utf-8")
+    match = run(Workspace([tmp_path]).scan_text(str(tmp_path), "needle"))["matches"][0]
+    assert len(match["text"]) == 4096
+    assert match["text_truncated"] is True
+
+
 def test_cursor_cache_cleanup(tmp_path: Path) -> None:
     workspace = Workspace([tmp_path])
     for _ in range(260):
