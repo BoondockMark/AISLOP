@@ -50,9 +50,14 @@ produces an initial release, this section will be updated with the real package
 name, executable, transport, and configuration—assuming that happens before
 maintenance ends.
 
-## Installation
+## Set up the server
 
-### Today: acquire the source-shaped placeholder
+> [!IMPORTANT]
+> The commands in this section describe the setup contract for a future AISLOP
+> release. They are deliberately marked as placeholders because the repository
+> does not contain a server executable yet.
+
+### 1. Acquire the source-shaped placeholder
 
 ```sh
 git clone <repository-url>
@@ -63,14 +68,38 @@ Replace `<repository-url>` with the clone URL for this repository. That installs
 nothing, but it does provide a local copy of the disclaimer, which is currently
 the complete AISLOP experience.
 
-### Initial release: install the actual software
+### 2. Install a released server
 
 No installation command is published yet. Do **not** guess a package name and
 run it through `npm`, `pip`, `uv`, `cargo`, or a curl-to-shell pipeline. Wait for
 a tagged release, then follow the release notes and verify that the documented
-package and executable actually exist.
+package and executable actually exist. A usable release must document:
 
-## Connecting an MCP client
+- the installation command and supported runtime version;
+- the executable name and its `--help` and `--version` commands;
+- required credentials and other environment variables; and
+- whether it supports local **stdio**, remote **Streamable HTTP**, or both.
+
+Keep credentials out of this repository. Put them in the host's secret or
+environment-variable facility, grant the smallest permissions possible, and do
+not include secret values in screenshots, prompts, or bug reports.
+
+### 3. Verify the server before connecting an AI
+
+Run the release's documented health check first. At minimum, confirm that the
+executable starts without an AI client and that its version is the one you
+intended to install. The concrete command will replace this placeholder after a
+server is released:
+
+```sh
+<aislop-executable> --version
+```
+
+For a stdio server, do not expect normal application output in the terminal:
+stdout carries MCP protocol messages. Diagnostic logs must go to stderr. For a
+remote server, use the release's documented health endpoint and TLS URL.
+
+## Connect from an external AI application
 
 There is currently no AISLOP server process, URL, or supported MCP transport to
 connect to. A real connection guide must specify all of the following:
@@ -80,11 +109,77 @@ connect to. A real connection guide must specify all of the following:
 3. any required arguments and environment variables; and
 4. the exact MCP client configuration.
 
-Until the initial release supplies those details, do not paste a fictional
-`aislop` command into your MCP client's configuration. The client will fail to
-start it, which is technically predictable behavior but not yet a feature.
+The model does not connect to AISLOP by itself. You configure AISLOP in an
+**MCP-compatible host** (an AI desktop app, editor, or agent); that host becomes
+the MCP client and exposes the discovered AISLOP tools to the model.
 
-## Usage
+Choose one connection pattern when a release becomes available.
+
+### Local connection over stdio
+
+Use stdio when the AI host and AISLOP run on the same machine. In the host's MCP
+settings, add an entry shaped like this and replace every `<...>` value with
+values from the AISLOP release notes:
+
+```json
+{
+  "mcpServers": {
+    "aislop": {
+      "command": "<absolute-path-to-aislop-executable>",
+      "args": ["<documented-server-argument>"],
+      "env": {
+        "<VARIABLE_FROM_RELEASE_NOTES>": "<load-with-your-hosts-secret-manager>"
+      }
+    }
+  }
+}
+```
+
+The top-level key and exact schema vary by host, so consult the host's MCP
+documentation. Prefer an absolute executable path: GUI applications often do
+not inherit the same `PATH` as a terminal. Restart or reload the host after
+saving the configuration.
+
+### Remote connection over Streamable HTTP
+
+Use a network transport only if a future AISLOP release explicitly supports
+it. Deploy the server behind HTTPS, require authentication, and restrict
+inbound access. Then add the documented MCP endpoint to a host that supports
+remote servers. A typical *shape* is:
+
+```json
+{
+  "mcpServers": {
+    "aislop": {
+      "url": "https://<your-hostname>/<documented-mcp-path>",
+      "headers": {
+        "Authorization": "Bearer <load-from-a-secret-manager>"
+      }
+    }
+  }
+}
+```
+
+Do not expose a local stdio process directly to the internet, assume the sample
+keys match your chosen host, or use an unencrypted `http://` endpoint outside a
+trusted development machine. If the host cannot attach headers safely, use its
+documented OAuth or secret-injection mechanism instead of storing a token in a
+shared configuration file.
+
+### Confirm the connection
+
+After restarting the host:
+
+1. open its MCP/server panel and confirm that `aislop` is connected;
+2. inspect the tools reported by the server rather than assuming their names;
+3. review the host and server logs if discovery fails; and
+4. verify the executable path, arguments, environment, URL, TLS certificate,
+   and authorization settings before retrying.
+
+Until the initial release supplies real values, do not paste the placeholder
+configurations above into an MCP client and expect them to work.
+
+## Use AISLOP through the AI
 
 At present, usage consists of reading this README and imagining a successful
 tool call. There are no tools to invoke, prompts to run, resources to browse, or
@@ -95,9 +190,24 @@ When an initial release exists, the expected workflow will be:
 1. install AISLOP from the release's documented source;
 2. add its documented server configuration to an MCP-compatible host;
 3. restart the host and confirm that it discovers AISLOP's advertised tools;
-4. ask the host to invoke a tool and review what the model proposes; and
-5. supervise every action instead of confusing protocol support with good
-   judgment.
+4. ask the AI to list the AISLOP tools it can access;
+5. make a specific request, including the target and desired result;
+6. review the selected tool, its arguments, and any approval prompt; and
+7. verify the result and supervise every action instead of confusing protocol
+   support with good judgment.
+
+A future tool call might be requested in natural language like this:
+
+```text
+List the AISLOP tools available to you. Do not call one yet. Explain which tool
+you would use for <task>, show me the proposed arguments, and wait for approval.
+```
+
+After reviewing the proposal, ask the AI to run it. Start with a read-only
+operation, use a non-production target, and independently check the result.
+Tool availability, names, inputs, and outputs come from server discovery and
+the release documentation; the example above intentionally invents none of
+them.
 
 Exact commands and examples will be added only after the interface exists. This
 is inconvenient, but still more useful than documentation for software Codex
