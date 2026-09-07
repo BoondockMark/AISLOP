@@ -1,6 +1,6 @@
 [project]
 name = "aislop"
-version = "1.0.0"
+dynamic = ["version"]
 description = "A bounded, read-only workspace observation MCP server"
 readme = "README.md"
 license = "MIT"
@@ -26,6 +26,10 @@ aislop = "aislop.server:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+# This is the sole release version. Package metadata and the CLI both read it.
+path = "src/aislop/__init__.py"
 
 [dependency-groups]
 dev = [
