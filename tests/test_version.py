@@ -7,7 +7,7 @@ from scripts.validate_version import distribution_version
 
 
 def test_package_and_cli_use_the_authoritative_version() -> None:
-    assert importlib.metadata.version("aislop") == aislop.__version__
+    assert importlib.metadata.version("aislop-sdr") == aislop.__version__
     completed = subprocess.run(
         [sys.executable, "-m", "aislop.server", "--version"],
         check=True,

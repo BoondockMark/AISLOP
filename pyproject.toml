@@ -1,5 +1,5 @@
 [project]
-name = "aislop"
+name = "aislop-sdr"
 dynamic = ["version"]
 description = "A bounded, read-only workspace observation MCP server"
 readme = "README.md"
