@@ -93,6 +93,11 @@ jobs:
       - run: uv run python -m twine check dist/*
       - run: uv run python scripts/validate_release_artifacts.py dist/*
       - run: uv run python scripts/validate_version.py --tag "$GITHUB_REF_NAME" dist/*
+      - name: Smoke test the exact wheel
+        run: |
+          uv venv --python 3.12 .package-venv
+          uv pip install --python .package-venv/bin/python dist/*.whl
+          test "$(.package-venv/bin/aislop --version)" = "aislop ${GITHUB_REF_NAME#v}"
       - name: Generate CycloneDX SBOM
         run: uvx --from 'cyclonedx-bom==7.1.0' cyclonedx-py requirements requirements.lock --output-format JSON --output-file dist/aislop-${GITHUB_REF_NAME#v}.cdx.json
       - name: Generate checksums
