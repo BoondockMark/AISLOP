@@ -9,7 +9,7 @@ from email.parser import BytesParser
 from pathlib import Path
 
 EXPECTED_LICENSE = "MIT"
-EXPECTED_NAME = "aislop"
+EXPECTED_NAME = "aislop-sdr"
 EXPECTED_PYTHON = ">=3.12,<3.14"
 EXPECTED_SCRIPT = "aislop = aislop.server:main"
 
