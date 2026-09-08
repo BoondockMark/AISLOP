@@ -1,4 +1,4 @@
-"""Verify that built distributions consistently carry AISLOP's license."""
+"""Verify that built distributions contain complete, publishable metadata."""
 
 from __future__ import annotations
 
@@ -9,38 +9,58 @@ from email.parser import BytesParser
 from pathlib import Path
 
 EXPECTED_LICENSE = "MIT"
+EXPECTED_NAME = "aislop"
+EXPECTED_PYTHON = ">=3.12,<3.14"
+EXPECTED_SCRIPT = "aislop = aislop.server:main"
 
 
-def _wheel_members(path: Path) -> tuple[list[str], bytes]:
+def _wheel_members(path: Path) -> tuple[list[str], bytes, bytes]:
     with zipfile.ZipFile(path) as archive:
         names = archive.namelist()
         metadata_name = next(name for name in names if name.endswith(".dist-info/METADATA"))
-        return names, archive.read(metadata_name)
+        scripts_name = next(name for name in names if name.endswith(".dist-info/entry_points.txt"))
+        return names, archive.read(metadata_name), archive.read(scripts_name)
 
 
-def _sdist_members(path: Path) -> tuple[list[str], bytes]:
+def _sdist_members(path: Path) -> tuple[list[str], bytes, bytes | None]:
     with tarfile.open(path, "r:gz") as archive:
         names = archive.getnames()
         metadata_name = next(name for name in names if name.endswith("/PKG-INFO"))
         metadata = archive.extractfile(metadata_name)
         if metadata is None:
             raise ValueError(f"cannot read {metadata_name} from {path}")
-        return names, metadata.read()
+        return names, metadata.read(), None
 
 
 def validate(path: Path) -> None:
     if path.suffix == ".whl":
-        names, metadata_bytes = _wheel_members(path)
+        names, metadata_bytes, entry_points = _wheel_members(path)
         has_license = any(name.endswith(".dist-info/licenses/LICENSE") for name in names)
+        required_members = ("aislop/__init__.py", "aislop/py.typed", "aislop/server.py")
+        missing = [member for member in required_members if member not in names]
+        if missing:
+            raise ValueError(f"{path} is missing wheel members: {', '.join(missing)}")
+        if EXPECTED_SCRIPT not in entry_points.decode("utf-8").splitlines():
+            raise ValueError(f"{path} does not define the {EXPECTED_NAME} console script")
     elif path.name.endswith(".tar.gz"):
-        names, metadata_bytes = _sdist_members(path)
+        names, metadata_bytes, _ = _sdist_members(path)
         has_license = any(name.endswith("/LICENSE") for name in names)
+        for filename in ("README.md", "pyproject.toml", "src/aislop/py.typed"):
+            if not any(name.endswith(f"/{filename}") for name in names):
+                raise ValueError(f"{path} does not contain {filename}")
     else:
         raise ValueError(f"unsupported artifact: {path}")
 
     metadata = BytesParser().parsebytes(metadata_bytes)
+    if metadata["Name"] != EXPECTED_NAME:
+        raise ValueError(f"{path} has unexpected project name {metadata['Name']!r}")
     if metadata["License-Expression"] != EXPECTED_LICENSE:
         raise ValueError(f"{path} does not declare {EXPECTED_LICENSE}")
+    if metadata["Requires-Python"] != EXPECTED_PYTHON:
+        raise ValueError(f"{path} has unexpected Python requirement")
+    description = metadata.get_payload()
+    if not isinstance(description, str) or not description.strip():
+        raise ValueError(f"{path} does not contain the README description")
     if not has_license:
         raise ValueError(f"{path} does not contain LICENSE")
 

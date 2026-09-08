@@ -8,23 +8,31 @@ license-files = ["LICENSE"]
 authors = [
     { name = "AISLOP contributors" }
 ]
-urls = { Homepage = "https://github.com/BoondockMark/AISLOP", Repository = "https://github.com/BoondockMark/AISLOP", Issues = "https://github.com/BoondockMark/AISLOP/issues" }
 keywords = ["mcp", "model-context-protocol", "filesystem"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Typing :: Typed",
     "Topic :: Software Development :: Libraries",
 ]
 requires-python = ">=3.12,<3.14"
 dependencies = ["mcp[cli]>=1.13.1,<2"]
 
+[project.urls]
+Homepage = "https://github.com/BoondockMark/AISLOP"
+Documentation = "https://github.com/BoondockMark/AISLOP/blob/main/README.md"
+Changelog = "https://github.com/BoondockMark/AISLOP/blob/main/CHANGELOG.md"
+Source = "https://github.com/BoondockMark/AISLOP"
+Issues = "https://github.com/BoondockMark/AISLOP/issues"
+
 [project.scripts]
 aislop = "aislop.server:main"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
