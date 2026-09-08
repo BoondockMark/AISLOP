@@ -27,7 +27,7 @@ if match is None:
     raise SystemExit("requirements.lock must contain one exact mcp[cli] pin")
 
 major, minor, patch = (int(part) for part in match.group(1).split("."))
-if not ((major, minor, patch) >= (1, 13, 1) and major < 2):
+if not ((major, minor, patch) >= (1, 30, 0) and major < 2):
     raise SystemExit(f"locked {match.group(0)!r} is outside {declared!r}")
 
 print(f"validated {len(pins)} reviewed production pins; {match.group(0)} satisfies {declared}")
