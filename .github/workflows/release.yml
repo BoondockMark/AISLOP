@@ -21,10 +21,10 @@ jobs:
         python: ["3.12", "3.13"]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python }}
           enable-cache: false
@@ -40,11 +40,11 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
           enable-cache: false
@@ -58,7 +58,7 @@ jobs:
       - name: Security documentation gate
         run: test -s SECURITY.md && test -s docs/security.md && test -s RELEASING.md
       - name: Secret scan
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: uv build
@@ -73,11 +73,11 @@ jobs:
     outputs:
       prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
           enable-cache: false
@@ -103,7 +103,7 @@ jobs:
       - name: Generate checksums
         working-directory: dist
         run: sha256sum * > SHA256SUMS
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-${{ github.ref_name }}
           path: dist/
@@ -119,11 +119,11 @@ jobs:
       contents: read
       attestations: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-${{ github.ref_name }}
           path: dist
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             dist/*.whl
@@ -140,7 +140,7 @@ jobs:
       contents: write
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-${{ github.ref_name }}
           path: dist
