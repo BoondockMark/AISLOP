@@ -40,7 +40,7 @@ same excitement.
 
 ## Project status
 
-AISLOP 1.0.0 is complete and packaged as [`aislop` on PyPI](https://pypi.org/project/aislop/1.0.0/). The canonical source repository is [BoondockMark/AISLOP on GitHub](https://github.com/BoondockMark/AISLOP). Version 1.0.0 is the only planned release and is unmaintained; see the [maintenance and release policy](MAINTENANCE.md).
+AISLOP 1.0.0 is complete and packaged as [`aislop-sdr` on PyPI](https://pypi.org/project/aislop-sdr/1.0.0/). The canonical source repository is [BoondockMark/AISLOP on GitHub](https://github.com/BoondockMark/AISLOP). Version 1.0.0 is the only planned release and is unmaintained; see the [maintenance and release policy](MAINTENANCE.md).
 
 The supported matrix is deliberately narrow:
 
@@ -62,10 +62,10 @@ acceptance, publication, and rollback procedure is in the [release checklist](RE
 Install into a dedicated virtual environment as an unprivileged user:
 
 ```sh
-python -m pip install aislop==1.0.0
+python -m pip install aislop-sdr==1.0.0
 ```
 
-That is the exact release installation command and obtains the package from [PyPI](https://pypi.org/project/aislop/1.0.0/). To work from canonical source instead, clone `https://github.com/BoondockMark/AISLOP.git`; source development uses `uv sync --all-groups`, not the release install above.
+That is the exact release installation command and obtains the `aislop-sdr` distribution from [PyPI](https://pypi.org/project/aislop-sdr/1.0.0/). The installed command remains `aislop`. To work from canonical source instead, clone `https://github.com/BoondockMark/AISLOP.git`; source development uses `uv sync --all-groups`, not the release install above.
 
 ### 2. Verify the executable
 
@@ -179,14 +179,14 @@ Restart or reload the host after saving either transport. Confirm that `aislop` 
 There is no automatic updater. Review the canonical release, upgrade with an explicit version, and verify it:
 
 ```sh
-python -m pip install --upgrade aislop==1.0.0
+python -m pip install --upgrade aislop-sdr==1.0.0
 aislop --version
 ```
 
 Version 1.0.0 is the only planned release, so this currently reinstalls or confirms it. To uninstall, stop the server, remove its host entry, and run:
 
 ```sh
-python -m pip uninstall --yes aislop
+python -m pip uninstall --yes aislop-sdr
 ```
 
 Uninstallation does not edit host settings, virtual environments, logs, shell history, or data retained by the host. AISLOP creates no persistent configuration or index.
