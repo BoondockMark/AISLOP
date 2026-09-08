@@ -56,6 +56,9 @@ dev = [
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"
 testpaths = ["tests"]
+# Make both the src-layout package and repository-local validation helpers
+# importable during collection, without relying on an editable installation.
+pythonpath = ["src", "."]
 
 [tool.ruff]
 line-length = 100
@@ -66,8 +69,9 @@ select = ["E", "F", "I", "UP", "B", "ASYNC"]
 
 [tool.mypy]
 python_version = "3.12"
-packages = ["aislop"]
-mypy_path = "src"
+# `files` accepts filesystem paths; `packages` accepts import names and must not
+# be given a path containing directory separators.
+files = ["src/aislop"]
 check_untyped_defs = true
 ignore_missing_imports = true
 warn_unreachable = true
