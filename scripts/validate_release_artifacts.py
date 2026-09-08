@@ -16,11 +16,20 @@ EXPECTED_SCRIPT = "aislop = aislop.server:main"
 PROJECT_FILE = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
 
+def _python_requirement_clauses(requirement: str) -> frozenset[str]:
+    """Return clauses independently of the order used by metadata serializers."""
+    return frozenset(clause.strip() for clause in requirement.split(","))
+
+
+def _python_requirements_match(actual: str, expected: str = EXPECTED_PYTHON) -> bool:
+    return _python_requirement_clauses(actual) == _python_requirement_clauses(expected)
+
+
 def validate_project_configuration(path: Path = PROJECT_FILE) -> None:
     """Ensure source metadata and the release policy cannot silently diverge."""
     with path.open("rb") as project_file:
         requires_python = tomllib.load(project_file)["project"]["requires-python"]
-    if requires_python != EXPECTED_PYTHON:
+    if not _python_requirements_match(requires_python):
         raise ValueError(
             f"{path} has unexpected Python requirement {requires_python!r}; "
             f"expected {EXPECTED_PYTHON!r}"
@@ -69,7 +78,7 @@ def validate(path: Path) -> None:
         raise ValueError(f"{path} has unexpected project name {metadata['Name']!r}")
     if metadata["License-Expression"] != EXPECTED_LICENSE:
         raise ValueError(f"{path} does not declare {EXPECTED_LICENSE}")
-    if metadata["Requires-Python"] != EXPECTED_PYTHON:
+    if not _python_requirements_match(metadata["Requires-Python"]):
         raise ValueError(
             f"{path} has unexpected Python requirement {metadata['Requires-Python']!r}; "
             f"expected {EXPECTED_PYTHON!r}"
