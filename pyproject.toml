@@ -63,7 +63,8 @@ select = ["E", "F", "I", "UP", "B", "ASYNC"]
 
 [tool.mypy]
 python_version = "3.12"
-packages = ["src/aislop"]
+packages = ["aislop"]
+mypy_path = "src"
 check_untyped_defs = true
 ignore_missing_imports = true
 warn_unreachable = true
