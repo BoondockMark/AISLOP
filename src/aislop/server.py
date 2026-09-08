@@ -201,35 +201,47 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = parser().parse_args(argv)
+    argument_parser = parser()
+    args = argument_parser.parse_args(argv)
     logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(levelname)s %(message)s")
-    if any(not root.is_absolute() for root in args.allow_root):
-        parser().error("--allow-root values must be absolute paths")
+
+    # Validate scalar and transport settings before touching the filesystem. In
+    # particular, POSIX-looking paths such as "/" are not absolute on Windows;
+    # that platform difference must not hide an unrelated option error.
     if args.max_request_bytes < 1 or args.request_timeout <= 0 or args.rate_limit < 1:
-        parser().error("HTTP size, timeout, and rate limits must be positive")
+        argument_parser.error("HTTP size, timeout, and rate limits must be positive")
+
+    token = None
+    if args.transport == "http":
+        token = args.auth_token or os.environ.get("AISLOP_AUTH_TOKEN")
+        if not token:
+            argument_parser.error("HTTP requires --auth-token or AISLOP_AUTH_TOKEN")
+        try:
+            token.encode("ascii")
+        except UnicodeEncodeError:
+            argument_parser.error("HTTP bearer token must be ASCII")
+        if (
+            len(token) < 32
+            or not token.isprintable()
+            or any(character.isspace() for character in token)
+        ):
+            argument_parser.error(
+                "HTTP requires a bearer token of at least 32 printable non-whitespace characters"
+            )
+
+    if any(not root.is_absolute() for root in args.allow_root):
+        argument_parser.error("--allow-root values must be absolute paths")
     try:
         workspace = Workspace(args.allow_root)
     except (OSError, ValueError) as exc:
-        parser().error(f"invalid --allow-root: {exc}")
+        argument_parser.error(f"invalid --allow-root: {exc}")
+
     server = create_server(workspace, host=args.host, port=args.port)
     if args.transport == "stdio":
         server.run(transport="stdio")
         return 0
-    token = args.auth_token or os.environ.get("AISLOP_AUTH_TOKEN")
-    if not token:
-        parser().error("HTTP requires --auth-token or AISLOP_AUTH_TOKEN")
-    try:
-        token.encode("ascii")
-    except UnicodeEncodeError:
-        parser().error("HTTP bearer token must be ASCII")
-    if (
-        len(token) < 32
-        or not token.isprintable()
-        or any(character.isspace() for character in token)
-    ):
-        parser().error(
-            "HTTP requires a bearer token of at least 32 printable non-whitespace characters"
-        )
+
+    assert token is not None
     import uvicorn
 
     app = HTTPPolicy(
