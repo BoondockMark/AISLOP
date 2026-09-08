@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import tarfile
+import tomllib
 import zipfile
 from email.parser import BytesParser
 from pathlib import Path
@@ -12,6 +13,18 @@ EXPECTED_LICENSE = "MIT"
 EXPECTED_NAME = "aislop-sdr"
 EXPECTED_PYTHON = ">=3.12,<3.14"
 EXPECTED_SCRIPT = "aislop = aislop.server:main"
+PROJECT_FILE = Path(__file__).resolve().parents[1] / "pyproject.toml"
+
+
+def validate_project_configuration(path: Path = PROJECT_FILE) -> None:
+    """Ensure source metadata and the release policy cannot silently diverge."""
+    with path.open("rb") as project_file:
+        requires_python = tomllib.load(project_file)["project"]["requires-python"]
+    if requires_python != EXPECTED_PYTHON:
+        raise ValueError(
+            f"{path} has unexpected Python requirement {requires_python!r}; "
+            f"expected {EXPECTED_PYTHON!r}"
+        )
 
 
 def _wheel_members(path: Path) -> tuple[list[str], bytes, bytes]:
@@ -57,7 +70,10 @@ def validate(path: Path) -> None:
     if metadata["License-Expression"] != EXPECTED_LICENSE:
         raise ValueError(f"{path} does not declare {EXPECTED_LICENSE}")
     if metadata["Requires-Python"] != EXPECTED_PYTHON:
-        raise ValueError(f"{path} has unexpected Python requirement")
+        raise ValueError(
+            f"{path} has unexpected Python requirement {metadata['Requires-Python']!r}; "
+            f"expected {EXPECTED_PYTHON!r}"
+        )
     description = metadata.get_payload()
     if not isinstance(description, str) or not description.strip():
         raise ValueError(f"{path} does not contain the README description")
@@ -69,6 +85,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("artifacts", nargs="+", type=Path)
     args = parser.parse_args()
+    validate_project_configuration()
     for artifact in args.artifacts:
         validate(artifact)
 
