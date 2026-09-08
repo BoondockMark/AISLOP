@@ -39,6 +39,9 @@ build-backend = "hatchling.build"
 # This is the sole release version. Package metadata and the CLI both read it.
 path = "src/aislop/__init__.py"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/aislop"]
+
 [dependency-groups]
 dev = [
     "build>=1.3,<2",
