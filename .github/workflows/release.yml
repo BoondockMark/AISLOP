@@ -32,6 +32,17 @@ jobs:
       - run: uv run pytest
       - run: uv build
       - run: uv run python scripts/validate_version.py --tag "${{ github.ref_name }}" dist/*
+      - name: End-to-end test the exact built wheel
+        shell: bash
+        run: |
+          uv venv --python ${{ matrix.python }} .wheel-e2e
+          if [[ -x .wheel-e2e/bin/python ]]; then
+            wheel_python=.wheel-e2e/bin/python
+          else
+            wheel_python=.wheel-e2e/Scripts/python.exe
+          fi
+          uv pip install --python "$wheel_python" dist/*.whl
+          "$wheel_python" tests/installed_wheel_e2e.py
 
   gates:
     name: Release gates
@@ -98,6 +109,7 @@ jobs:
           uv venv --python 3.12 .package-venv
           uv pip install --python .package-venv/bin/python dist/*.whl
           test "$(.package-venv/bin/aislop --version)" = "aislop ${GITHUB_REF_NAME#v}"
+          .package-venv/bin/python tests/installed_wheel_e2e.py
       - name: Generate CycloneDX SBOM
         run: uvx --from 'cyclonedx-bom==7.1.0' cyclonedx-py requirements requirements.lock --output-format JSON --output-file dist/aislop-${GITHUB_REF_NAME#v}.cdx.json
       - name: Generate checksums

@@ -195,7 +195,7 @@ class RfWebApp:
             return
 
         path = scope.get("path", "")
-        if path == "/healthz":
+        if path in {"/health", "/healthz"}:
             await _response(
                 send,
                 200,
