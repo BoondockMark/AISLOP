@@ -104,18 +104,25 @@ and proxy limits when these residual risks are material.
 
 ## Dependency provenance and release gate
 
-`requirements.lock` is the committed production lock input. The sole direct
-runtime package is `mcp[cli]` from the Python Package Index; its transitive graph
-is resolved only from the configured trusted index during controlled lockfile
-regeneration. Maintainers must inspect unexpected new maintainers, packages,
-native code, install hooks, licenses, and dependency diffs before accepting a
-lock update. Git dependencies, direct URLs, editable installs, and unreviewed
-indexes are prohibited. GitHub Actions are pinned to reviewed major releases and
-publishing uses GitHub/PyPI trusted publishing rather than a stored API token.
+`requirements.lock` is the committed production lock input. The direct runtime
+set is MCP, Starlette, Uvicorn, NumPy, SciPy, Matplotlib, and Pillow. NumPy and
+SciPy are core DSP dependencies, and Matplotlib is mandatory because plots are
+outputs of many advertised MCP and dashboard operations. Pillow supports
+Matplotlib and SSTV image post-processing. Satellite prediction (Skyfield)
+remains an explicitly declared feature extra; its operations detect an absent
+extra and return a capability error.
+The production graph is resolved only from the configured trusted index during
+controlled lockfile regeneration. Maintainers must inspect unexpected new
+maintainers, packages, native code, install hooks, licenses, and dependency diffs
+before accepting a lock update. Git dependencies, direct URLs, editable installs,
+and unreviewed indexes are prohibited. GitHub Actions are pinned to reviewed major
+releases and publishing uses GitHub/PyPI trusted publishing rather than a stored
+API token.
 
 Every release is blocked on the CI `test` and `quality` jobs. The quality gate
-validates the reviewed production pin, checks the installed graph, audits known
-vulnerabilities, scans secrets, type-checks/lints, and validates built metadata.
+validates every direct production dependency against the reviewed lock, checks
+the installed graph, audits known vulnerabilities, scans secrets,
+type-checks/lints, and validates built metadata.
 A maintainer must additionally confirm this threat model still matches the
 feature set and record review of the dependency diff in the release pull request.
 Any unexplained audit finding, provenance change, secret, failed negative test,

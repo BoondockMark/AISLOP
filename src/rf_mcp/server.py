@@ -221,7 +221,7 @@ live_iq_manager = LiveIQManager()
 
 
 class _LazyLiveAudioManager:
-    """Keep scipy out of the lightweight MCP import/readiness path."""
+    """Keep SciPy out of the lightweight MCP import/readiness path."""
     _manager = None
     def _get(self):
         if self._manager is None:

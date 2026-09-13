@@ -20,9 +20,19 @@ classifiers = [
 ]
 requires-python = ">=3.12,<3.14"
 dependencies = [
+    "matplotlib>=3.10,<4",
     "mcp[cli]>=1.30.0,<2",
+    "numpy>=2.3,<3",
+    "pillow>=11.3,<13",
+    "scipy>=1.16,<2",
     "starlette>=1.1.0,<2",
+    "uvicorn>=0.35,<1",
 ]
+
+[project.optional-dependencies]
+# Satellite prediction is an isolated feature; its operations report an
+# actionable capability error when this extra is absent.
+satellite = ["skyfield>=1.53,<2"]
 
 [project.urls]
 Homepage = "https://github.com/BoondockMark/AISLOP"
