@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import base64
 import json
 import os
@@ -4326,6 +4327,11 @@ def identify_live_signal(
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="rf-mcp", description="Run the AISLOP Multi-SDR RF Lab MCP server."
+    )
+    parser.add_argument("--version", action="version", version=f"rf-mcp {__version__}")
+    parser.parse_args()
     transport = os.getenv("RF_MCP_TRANSPORT", "streamable-http")
     token = validate_api_token(os.getenv("RF_MCP_API_TOKEN"))
     if transport != "streamable-http" and token is not None:

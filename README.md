@@ -67,6 +67,11 @@ python -m pip install aislop-sdr==1.0.0
 
 That is the exact release installation command and obtains the `aislop-sdr` distribution from [PyPI](https://pypi.org/project/aislop-sdr/1.0.0/). The installed command remains `aislop`. To work from canonical source instead, clone `https://github.com/BoondockMark/AISLOP.git`; source development uses `uv sync --all-groups`, not the release install above.
 
+The distribution also installs `rf-mcp`, the supported entry point for the
+Multi-SDR RF Lab server and its web dashboard. Run `rf-mcp --version` to verify
+the installed RF server. The `aislop` command is intentionally retained for the
+bounded, read-only workspace observer documented below.
+
 ### 2. Verify the executable
 
 ```console

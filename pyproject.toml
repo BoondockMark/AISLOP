@@ -33,6 +33,7 @@ Issues = "https://github.com/BoondockMark/AISLOP/issues"
 
 [project.scripts]
 aislop = "aislop.server:main"
+rf-mcp = "rf_mcp.server:main"
 
 [build-system]
 requires = ["hatchling>=1.27,<2"]
@@ -43,7 +44,7 @@ build-backend = "hatchling.build"
 path = "src/aislop/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/aislop"]
+packages = ["src/aislop", "src/rf_mcp"]
 
 [dependency-groups]
 dev = [

@@ -12,8 +12,20 @@ from pathlib import Path
 EXPECTED_LICENSE = "MIT"
 EXPECTED_NAME = "aislop-sdr"
 EXPECTED_PYTHON = ">=3.12,<3.14"
-EXPECTED_SCRIPT = "aislop = aislop.server:main"
+EXPECTED_SCRIPTS = (
+    "aislop = aislop.server:main",
+    "rf-mcp = rf_mcp.server:main",
+)
 PROJECT_FILE = Path(__file__).resolve().parents[1] / "pyproject.toml"
+RF_PACKAGE = PROJECT_FILE.parent / "src" / "rf_mcp"
+REQUIRED_RF_MODULES = tuple(
+    f"rf_mcp/{module.relative_to(RF_PACKAGE).as_posix()}"
+    for module in sorted(RF_PACKAGE.rglob("*.py"))
+)
+REQUIRED_DASHBOARD_ASSETS = tuple(
+    f"rf_mcp/assets/{filename}"
+    for filename in ("dashboard.html", "dashboard.css", "dashboard.js")
+)
 
 
 def _python_requirement_clauses(requirement: str) -> frozenset[str]:
@@ -58,12 +70,22 @@ def validate(path: Path) -> None:
     if path.suffix == ".whl":
         names, metadata_bytes, entry_points = _wheel_members(path)
         has_license = any(name.endswith(".dist-info/licenses/LICENSE") for name in names)
-        required_members = ("aislop/__init__.py", "aislop/py.typed", "aislop/server.py")
+        required_members = (
+            "aislop/__init__.py",
+            "aislop/py.typed",
+            "aislop/server.py",
+            *REQUIRED_RF_MODULES,
+            *REQUIRED_DASHBOARD_ASSETS,
+        )
         missing = [member for member in required_members if member not in names]
         if missing:
             raise ValueError(f"{path} is missing wheel members: {', '.join(missing)}")
-        if EXPECTED_SCRIPT not in entry_points.decode("utf-8").splitlines():
-            raise ValueError(f"{path} does not define the {EXPECTED_NAME} console script")
+        script_lines = entry_points.decode("utf-8").splitlines()
+        missing_scripts = [script for script in EXPECTED_SCRIPTS if script not in script_lines]
+        if missing_scripts:
+            raise ValueError(
+                f"{path} does not define console scripts: {', '.join(missing_scripts)}"
+            )
     elif path.name.endswith(".tar.gz"):
         names, metadata_bytes, _ = _sdist_members(path)
         has_license = any(name.endswith("/LICENSE") for name in names)

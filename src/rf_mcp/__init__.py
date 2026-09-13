@@ -1,3 +1,7 @@
 """Multi-SDR RF Lab MCP server."""
 
-__version__ = "1.1.0"
+# The distribution has one release version. Re-exporting it keeps RF API and
+# dashboard metadata aligned with the wheel and the workspace observer CLI.
+from aislop import __version__
+
+__all__ = ["__version__"]
