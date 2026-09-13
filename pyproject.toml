@@ -19,7 +19,10 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
 ]
 requires-python = ">=3.12,<3.14"
-dependencies = ["mcp[cli]>=1.13.1,<3"]
+dependencies = [
+    "mcp[cli]>=1.30.0,<2",
+    "starlette>=1.1.0,<2",
+]
 
 [project.urls]
 Homepage = "https://github.com/BoondockMark/AISLOP"
@@ -39,6 +42,9 @@ build-backend = "hatchling.build"
 # This is the sole release version. Package metadata and the CLI both read it.
 path = "src/aislop/__init__.py"
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/aislop"]
+
 [dependency-groups]
 dev = [
     "build>=1.3,<2",
@@ -53,6 +59,9 @@ dev = [
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"
 testpaths = ["tests"]
+# Make both the src-layout package and repository-local validation helpers
+# importable during collection, without relying on an editable installation.
+pythonpath = ["src", "."]
 
 [tool.ruff]
 line-length = 100
@@ -63,7 +72,9 @@ select = ["E", "F", "I", "UP", "B", "ASYNC"]
 
 [tool.mypy]
 python_version = "3.12"
-packages = ["aislop"]
+# `files` accepts filesystem paths; `packages` accepts import names and must not
+# be given a path containing directory separators.
+files = ["src/aislop"]
 check_untyped_defs = true
 ignore_missing_imports = true
 warn_unreachable = true
