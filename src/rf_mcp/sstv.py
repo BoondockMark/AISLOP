@@ -35,6 +35,18 @@ main()
 """
 
 
+def pillow_image():
+    """Return Pillow's Image module or an actionable installation error."""
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise RuntimeError(
+            "SSTV image processing is unavailable because the required Pillow "
+            "dependency is not installed; reinstall aislop-sdr"
+        ) from exc
+    return Image
+
+
 def sstv_decoder_path() -> str | None:
     configured = os.getenv("RF_MCP_SSTV_DECODER")
     if configured:
@@ -81,7 +93,7 @@ def run_sstv_decoder(wav_path: Path, png_path: Path) -> subprocess.CompletedProc
 
 def image_fingerprint(image: object) -> str:
     """Return a 256-bit difference hash suitable for near-duplicate grouping."""
-    from PIL import Image
+    Image = pillow_image()
     grayscale = np.asarray(
         image.convert("L").resize((17, 16), Image.Resampling.LANCZOS),
         dtype=np.uint8,
@@ -308,7 +320,7 @@ class SSTVManager:
                     f"SSTV decoder failed with exit status {completed.returncode}: "
                     f"{decoder_output or 'no diagnostic text'}"
                 )
-            from PIL import Image
+            Image = pillow_image()
 
             with Image.open(png_path) as image:
                 width, height = image.size

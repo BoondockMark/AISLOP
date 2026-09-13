@@ -25,7 +25,8 @@ def _skyfield():
         from skyfield.api import EarthSatellite, load, wgs84
     except ImportError as exc:
         raise RuntimeError(
-            "Satellite prediction requires Skyfield; install python3-skyfield"
+            "Satellite prediction is unavailable because the optional Skyfield "
+            "dependency is not installed; install aislop-sdr[satellite]"
         ) from exc
     return EarthSatellite, load, wgs84
 

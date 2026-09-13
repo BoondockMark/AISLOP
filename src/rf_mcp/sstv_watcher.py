@@ -382,7 +382,9 @@ class SSTVWatcherManager:
                 f"SSTV decoder failed with exit status {completed.returncode}: "
                 f"{output or 'no diagnostic text'}"
             )
-        from PIL import Image
+        from .sstv import pillow_image
+
+        Image = pillow_image()
 
         with Image.open(png_path) as decoded:
             width, height = decoded.size

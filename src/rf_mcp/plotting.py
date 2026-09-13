@@ -1,4 +1,4 @@
-"""Cached, headless Matplotlib loading for optional plotting code."""
+"""Cached, headless loading of the production Matplotlib dependency."""
 from __future__ import annotations
 
 from functools import lru_cache

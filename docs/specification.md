@@ -8,10 +8,13 @@
 
 AISLOP is implemented in Python, distributed from PyPI-compatible registries,
 and supports **CPython 3.12 and 3.13** (minimum 3.12). It uses the official
-**MCP Python SDK 1.13.x**; the package constrains the SDK to `>=1.13.1,<2` so a
+**MCP Python SDK 1.x**; the package constrains the SDK to `>=1.30.0,<2` so a
 breaking SDK release cannot silently change the protocol contract. The root
 `pyproject.toml` is the authoritative package manifest and `requirements.lock`
-records the reviewed production dependency version.
+records the complete reviewed production dependency graph. NumPy, SciPy,
+Matplotlib, and Pillow are mandatory for the advertised RF analysis, plot, and
+image operations; Skyfield satellite prediction is separately installable with
+the `satellite` extra.
 
 The SDK performs MCP initialization and advertises its tool capabilities during
 discovery. Pydantic-generated JSON Schemas validate requests before dispatch,

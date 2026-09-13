@@ -1,4 +1,8 @@
-"""Shared cached loaders for optional, feature-specific scientific dependencies."""
+"""Shared cached loaders for mandatory, feature-specific scientific dependencies.
+
+SciPy is part of the production install, but deferring it keeps startup and
+readiness checks inexpensive until a DSP operation actually runs.
+"""
 from __future__ import annotations
 
 from functools import lru_cache, wraps
