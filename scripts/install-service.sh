@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 python_bin="${PYTHON_BIN:-python3}"
 service_user="${SUDO_USER:-${USER:-$(id -un)}}"
 service_home="$(getent passwd "$service_user" | cut -d: -f6)"
@@ -33,7 +33,12 @@ if [[ -z "$service_home" || "$service_home" == "/" ]]; then
   exit 1
 fi
 
-if [[ "$project_dir" == *$'\n'* || "$project_dir" == *'"'* || "$project_dir" == *'%'* ]]; then
+if [[ "$project_dir" != /* ]]; then
+  echo "Unable to resolve an absolute project path: $project_dir" >&2
+  exit 1
+fi
+
+if [[ "$project_dir" == *$'\n'* || "$project_dir" == *'"'* || "$project_dir" == *'%'* || "$project_dir" == *[[:space:]]* ]]; then
   echo "The project path contains characters that cannot be safely written to the systemd unit." >&2
   exit 1
 fi
@@ -54,21 +59,23 @@ if [[ ! -x "$console_executable" ]]; then
   exit 1
 fi
 
-mkdir -p \
+sudo install -d -o "$service_user" -g "$service_user" \
   "$service_home/SDR-MCP-data/captures" \
   "$service_home/SDR-MCP-data/plots" \
   "$service_home/SDR-MCP-data/results" \
   "$service_home/SDR-MCP-data/audio" \
   "$service_home/SDR-MCP-data/fm-surveys" \
-  "$service_home/SDR-MCP-data/weak-signal"
-mkdir -p "$service_home/SDR-MCP-data/fldigi" "$service_home/SDR-MCP-data/fldigi-config"
-mkdir -p "$service_home/SDR-MCP-data/sstv"
-mkdir -p "$service_home/SDR-MCP-data/matplotlib-cache"
+  "$service_home/SDR-MCP-data/weak-signal" \
+  "$service_home/SDR-MCP-data/fldigi" \
+  "$service_home/SDR-MCP-data/fldigi-config" \
+  "$service_home/SDR-MCP-data/sstv" \
+  "$service_home/SDR-MCP-data/matplotlib-cache"
 service_tmp="$(mktemp)"
 trap 'rm -f "$service_tmp"' EXIT
 
-# Escape sed replacement metacharacters. Paths containing spaces are supported
-# because the corresponding systemd values are quoted in the template.
+# Escape sed replacement metacharacters. Whitespace in the checkout path is
+# rejected above because WorkingDirectory must begin with an unquoted slash on
+# systemd versions that do not strip quotes for that directive.
 sed_escape() {
   printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'
 }

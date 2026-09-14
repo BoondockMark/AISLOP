@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=simple
 User=__RF_MCP_USER__
 Group=__RF_MCP_USER__
-WorkingDirectory="__RF_MCP_PROJECT_DIR__"
+WorkingDirectory=__RF_MCP_PROJECT_DIR__
 Environment=RF_MCP_HOST=0.0.0.0
 Environment=RF_MCP_PORT=8765
 Environment=RF_MCP_TRANSPORT=streamable-http
