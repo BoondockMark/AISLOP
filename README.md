@@ -271,6 +271,10 @@ For product-specific setup, authentication guidance, first prompts, an Ollama
 tool-loop example, and troubleshooting, see [Connect AISLOP to ChatGPT and
 Ollama](docs/mcp-clients.md).
 
+For a complete two-machine deployment, including a Raspberry Pi 5 (8 GB) RF
+server and a Windows 11 (64 GB RAM / 16 GB VRAM) Ollama client, see the
+[Raspberry Pi 5 and Windows 11 example](examples/rpi5-windows11/README.md).
+
 ## Deterministic post-install verification (no SDR required)
 
 The fake receiver is a packaged test/demo backend, not an RF simulator selected
