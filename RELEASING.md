@@ -1,58 +1,89 @@
 # Release checklist
 
-AISLOP uses Semantic Versioning. `src/aislop/__init__.py::__version__` is the single
-authoritative version source; Hatch reads it into package metadata and the CLI imports it for
-`aislop --version`. Release tags are exactly `v<version>`. Python registries normalize a SemVer
-candidate such as `0.1.0-rc.1` to its equivalent PEP 440 spelling, `0.1.0rc1`; the release
-validator checks that deterministic translation and the clean install must use the registry's
-spelling.
+> **Current policy:** 1.0.0 is the sole planned release and is unmaintained.
+> This checklist is retained only to prevent an accidental future publication
+> from misrepresenting the packaged RF application.
 
-## One-time hosting setup
+The distribution version has one source,
+`src/aislop/__init__.py::__version__`; `rf_mcp` re-exports it and both console
+scripts and wheel metadata must match. Tags are immutable `v<SemVer>` tags.
+The RF API contract version (`1.0`) is separately defined in
+`src/rf_mcp/api_contract.py`; changing either value requires an explicit
+compatibility and documentation decision.
 
-- Set the canonical `origin` to `https://github.com/BoondockMark/AISLOP.git`.
-- Protect `main`: require a pull request, the complete CI matrix and `quality` checks, no force
-  pushes or deletion, resolved conversations, and administrator enforcement.
-- Create protected GitHub environments named `prerelease` and `release`. Require an owner review
-  for `release`, restrict it to tags matching `v[0-9]*`, and configure PyPI trusted publishing for
-  this repository/workflow/environment. The prerelease environment must target a non-production
-  registry (normally TestPyPI) and define the `repository-url` used by the publish step when that
-  registry is selected.
-- Enable immutable releases/tags and artifact attestations where the hosting plan supports them.
+## Candidate preparation
 
-## Candidate (`0.1.0-rc.1` example)
+- [ ] Obtain repository-owner approval to depart from the no-future-release
+  policy and update `MAINTENANCE.md`, `SECURITY.md`, and the changelog first.
+- [ ] Freeze `get_rf_api_contract`, generated MCP discovery, dashboard/JSON/live
+  routes, persistence schema/migrations, receiver adapters, subprocess decoder
+  capabilities, environment variables, and supported OS/Python matrix.
+- [ ] Apply Semantic Versioning: patch for fixes without intentional stable-core
+  changes; minor for additive tools/optional fields/enum values; major for
+  removals, renames, new requirements, or other incompatible v1 changes. Give at
+  least one minor release of deprecation notice before a next-major removal.
+- [ ] Update the authoritative package version, API version if applicable,
+  README install/host/verification instructions, specification, threat model,
+  policies, and dated changelog. Use the registry's PEP 440 spelling for a
+  prerelease artifact.
+- [ ] Review every Python lock diff and every expected external program
+  (`airspyhf_*`, `rtl_*`, ffmpeg, WSJT-X decoders, Fldigi/playback, SSTV), native
+  driver assumption, network destination, and license. External tools are not
+  pinned by the wheel, so record acceptance versions as release evidence.
+- [ ] Verify migrations and recovery using a copy of a prior
+  `RF_MCP_DATA_DIR`; never run candidate tests against irreplaceable station
+  data. Test backup/restore of SQLite database/WAL and artifacts together.
 
-- [ ] Freeze and approve `docs/specification.md`; record any intentional delta in `CHANGELOG.md`.
-- [ ] Set `__version__` to `0.1.0-rc.1`, update the changelog, and merge through protected `main`.
-- [ ] Run the complete test, formatting, lint, type, locked-dependency, vulnerability, secret,
-  metadata, licensing, and version gates locally and in CI.
-- [ ] Complete the threat-model and dependency/security review; resolve or explicitly accept every
-  finding before approval.
-- [ ] Verify README install/upgrade examples, CLI help, specification, security policy, maintenance
-  policy, licenses, and changelog against the candidate.
-- [ ] Produce a clean clone with no ignored/untracked inputs and tag that exact commit
-  `v0.1.0-rc.1`; push the tag. Never reuse or move a release tag.
-- [ ] Confirm the release workflow creates the sdist and universal wheel, SHA-256 checksums,
-  CycloneDX SBOM, GitHub provenance attestations, prerelease registry publication, and a matching
-  GitHub prerelease.
-- [ ] In a clean supported OS/Python environment, install the exact registry artifact by version
-  (not the workspace), verify `aislop --version`, complete MCP initialization/tool discovery, and
-  successfully call `inspect_path` and `scan_text`. Save the workflow and test evidence.
+## Automated gates
 
-## Stable acceptance
+- [ ] From a clean checkout run `uv sync --all-groups` and `uv run pytest` on
+  CPython 3.12 and 3.13 and every advertised OS.
+- [ ] Run `uv run ruff format --check .`, `uv run ruff check .`, `uv run mypy`,
+  `uv run python scripts/validate_dependencies.py`, `uv pip check`, and
+  `uv run pip-audit -r requirements.lock`.
+- [ ] Run the secret scan and manually review auth/session, webhook, subprocess,
+  receiver, storage/delete, dashboard/download, live-stream, and non-loopback
+  negative cases against `docs/security.md`.
+- [ ] Build from the clean tree with `uv build`; run Twine metadata validation,
+  `scripts/validate_release_artifacts.py`, and `scripts/validate_version.py`.
+  Confirm both console scripts, all RF modules, and packaged dashboard assets
+  are present.
 
-- [ ] Obtain release-owner acceptance of all candidate criteria on every supported OS/Python pair.
-- [ ] Set the stable SemVer, remove the prerelease suffix, finalize the dated changelog, repeat all
-  gates from a clean checkout, and approve the protected `release` environment.
-- [ ] Confirm registry metadata, Git tag, GitHub release title/notes, artifact versions, checksums,
-  SBOM, and provenance all name the identical stable version.
-- [ ] Reinstall the exact stable registry artifact in a new clean environment and repeat MCP
-  initialization, discovery, and representative calls.
+## Installed-artifact acceptance
 
-## Rollback
+For every supported OS/Python pair, install the exact wheel into a new virtual
+environment from outside the checkout and run `tests/installed_wheel_e2e.py`.
+Also execute the README's deterministic post-install sequence. Evidence must
+show all of the following without physical SDR hardware:
 
-- [ ] Stop the environment deployment and revoke publishing credentials/permissions if compromise
-  is suspected. Do not delete, move, or overwrite tags or registry files.
-- [ ] Mark the GitHub/registry release as withdrawn or yanked, document impact in the changelog and
-  security advisory, and direct users to the last accepted version.
-- [ ] Fix forward with a new SemVer patch (or a new prerelease identifier), rerun every gate and
-  clean-install acceptance check, then publish through the same protected process.
+- [ ] `rf-mcp --version` equals wheel/tag version;
+- [ ] `/healthz` reports ready, correct version, and auth state;
+- [ ] authenticated dashboard HTML/CSS/JavaScript assets are delivered and
+  unauthenticated access is rejected when a token is configured;
+- [ ] MCP initializes at `/mcp`, discovery includes the stable v1 core, and the
+  API contract is correct;
+- [ ] explicit fake-backend `list_devices` and `inspect_spectrum` calls return
+  the deterministic non-hardware observation; and
+- [ ] the job, result, plots, artifact metadata, and `SDR-MCP.sqlite3` persist in
+  the isolated data root and recovery works after restart.
+
+Separately perform owner-supervised hardware acceptance for each advertised
+Airspy HF+ and RTL-SDR adapter, and capability/timeout/failure checks for each
+advertised decoder. Hardware absence must remain an actionable capability error,
+not silently switch to fake data.
+
+## Publication and rollback
+
+- [ ] Merge through protected `main`, tag the exact reviewed commit once, and
+  require all CI/release-environment approvals.
+- [ ] Confirm the clean workflow emits matching sdist/wheel, SHA-256 checksums,
+  CycloneDX SBOM, provenance attestations, registry version, GitHub release, and
+  release notes. Publish via trusted publishing, never a stored PyPI token.
+- [ ] Reinstall the registry artifact and repeat deterministic acceptance. Do
+  not call a release supported unless `SECURITY.md` explicitly says so.
+
+If compromised or broken, stop publication/deployment and revoke permissions,
+tokens, sessions, and webhook secrets. Never move/reuse a tag or overwrite a
+registry file. Yank/withdraw the artifact, preserve forensic catalog/artifact
+copies, publish an advisory/changelog correction, and—only if maintenance policy
+has been changed—fix forward under a new SemVer version through every gate.

@@ -4,25 +4,25 @@
 
 | Version | Security fixes |
 | --- | --- |
-| Latest 1.x release | Yes |
-| Older releases and unreleased source snapshots | No |
+| 1.0.0 | No (unmaintained) |
+| Unreleased source snapshots and all other versions | No |
 
-Upgrade to the latest release before reporting a defect. Security fixes may be
-released without preserving insecure behavior.
+AISLOP has no supported release line. Version 1.0.0 is the only published and
+planned release and receives no bug, dependency, compatibility, or security
+updates. Users must assess, isolate, patch/fork, or replace it themselves. Do
+not expose `rf-mcp` merely because a historical CI or release check passed.
 
 ## Reporting a vulnerability
 
-Do **not** open a public issue. Use GitHub's **Security** tab and select
-**Report a vulnerability** to submit a private advisory. Include the affected
-version, configuration and transport, impact, reproduction steps, and any
-suggested mitigation. Do not include real credentials or private workspace data.
+Do **not** include credentials, received content, device serials, locations, or
+private catalog/artifact data in a public issue. GitHub's **Security** tab and
+**Report a vulnerability** may be used to notify the owner privately, including
+the affected version, transport/bind configuration, hardware/decoder stack,
+impact, and a minimal reproduction. This channel does not promise an
+acknowledgement, assessment, embargo, fix, advisory, or release.
 
-Maintainers aim to acknowledge a report within 3 business days, provide an
-initial assessment within 10 business days, and coordinate disclosure after a
-fix is available. If the Security tab is unavailable, contact the repository
-owner privately through the contact method on their GitHub profile. Please allow
-90 days before disclosure, unless a shorter timeline is mutually agreed or
-active exploitation requires an accelerated response.
-
-The threat model, deployment requirements, and release security gate are in
+For immediate risk, stop the service, remove network/device access, revoke the
+bearer token and webhook secrets, preserve necessary forensic copies of both the
+SQLite catalog/WAL and artifact tree, and rotate any downstream credentials.
+The RF threat model and deployment controls are in
 [`docs/security.md`](docs/security.md).
