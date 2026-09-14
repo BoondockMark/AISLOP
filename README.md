@@ -267,6 +267,10 @@ GUI hosts may not inherit the shell's `PATH`; use the absolute executable path
 and ensure receiver/decoder subprocesses are also discoverable. Restart the
 host after editing its configuration.
 
+For product-specific setup, authentication guidance, first prompts, an Ollama
+tool-loop example, and troubleshooting, see [Connect AISLOP to ChatGPT and
+Ollama](docs/mcp-clients.md).
+
 ## Deterministic post-install verification (no SDR required)
 
 The fake receiver is a packaged test/demo backend, not an RF simulator selected
