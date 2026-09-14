@@ -181,8 +181,28 @@ network-location problem, not a missing API token. Check the following:
    listener; on Linux/macOS, `curl --verbose http://127.0.0.1:8765/healthz` and
    `ss -ltnp 'sport = :8765'` distinguish that case from a browser problem. A
    listener shown as `127.0.0.1:8765` accepts only same-machine connections;
-   the packaged systemd unit uses `0.0.0.0:8765`. Also check that another
-   process is not already using port 8765.
+   it cannot accept a connection addressed to the machine from another
+   computer. Stop that process and restart it with a LAN bind:
+
+   ```sh
+   RF_MCP_HOST=0.0.0.0 RF_MCP_DATA_DIR="$HOME/SDR-MCP-data" rf-mcp
+   ss -ltnp 'sport = :8765' # should now show 0.0.0.0:8765
+   ```
+
+   The packaged systemd unit already sets `RF_MCP_HOST=0.0.0.0`; if it still
+   binds to loopback, inspect `/etc/SDR-MCP.env` for an overriding
+   `RF_MCP_HOST=127.0.0.1`, then restart and verify the service:
+
+   ```sh
+   sudo systemctl restart SDR-MCP.service
+   sudo systemctl --no-pager --full status SDR-MCP.service
+   ss -ltnp 'sport = :8765'
+   ```
+
+   Also check that another process is not already using port 8765. A LAN bind
+   exposes the unauthenticated dashboard unless `RF_MCP_API_TOKEN` is set, so
+   limit access with the host firewall or configure authentication before
+   allowing untrusted clients.
 5. Interpret `127.0.0.1` as the machine where the browser runs. If `rf-mcp`
    runs in a container, VM, WSL instance, SSH host, or another computer, its
    loopback address is not the browser machine's loopback address. Publish or
