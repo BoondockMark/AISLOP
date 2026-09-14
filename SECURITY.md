@@ -7,10 +7,11 @@
 | 1.0.0 | No (unmaintained) |
 | Unreleased source snapshots and all other versions | No |
 
-AISLOP has no supported release line. Version 1.0.0 is the only published and
-planned release and receives no bug, dependency, compatibility, or security
-updates. Users must assess, isolate, patch/fork, or replace it themselves. Do
-not expose `rf-mcp` merely because a historical CI or release check passed.
+AISLOP has no supported release line. Version 1.0.0 is the only planned release;
+its PyPI publication is pending. It receives no bug, dependency, compatibility,
+or security updates. Users must assess, isolate, patch/fork, or replace it
+themselves. Do not expose `rf-mcp` merely because a historical CI or release
+check passed.
 
 ## Reporting a vulnerability
 

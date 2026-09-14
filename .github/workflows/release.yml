@@ -143,13 +143,32 @@ jobs:
             dist/*.cdx.json
             dist/SHA256SUMS
 
-  publish:
-    name: Publish package and release
+  github-release:
+    name: Publish GitHub release
+    needs: [build, provenance]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-${{ github.ref_name }}
+          path: dist
+      - name: Create matching GitHub release and notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          args=(--verify-tag --generate-notes --title "$GITHUB_REF_NAME")
+          if [[ "${{ needs.build.outputs.prerelease }}" == true ]]; then args+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" dist/* "${args[@]}"
+
+  pypi-publish:
+    name: Publish to package registry
     needs: [build, provenance]
     runs-on: ubuntu-latest
     environment: ${{ needs.build.outputs.prerelease == 'true' && 'prerelease' || 'release' }}
     permissions:
-      contents: write
+      contents: read
       id-token: write
     steps:
       - uses: actions/download-artifact@v8
@@ -164,10 +183,3 @@ jobs:
           packages-dir: packages/
           repository-url: ${{ needs.build.outputs.prerelease == 'true' && 'https://test.pypi.org/legacy/' || 'https://upload.pypi.org/legacy/' }}
           attestations: true
-      - name: Create matching GitHub release and notes
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          args=(--verify-tag --generate-notes --title "$GITHUB_REF_NAME")
-          if [[ "${{ needs.build.outputs.prerelease }}" == true ]]; then args+=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" dist/* "${args[@]}"

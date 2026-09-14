@@ -4,7 +4,8 @@
 
 AISLOP is unmaintained after its initial release:
 
-- `aislop-sdr` 1.0.0 is the only published and planned package release;
+- `aislop-sdr` 1.0.0 is the only planned package release (PyPI publication is
+  pending, and the repository-install instructions remain available meanwhile);
 - no version receives bug, compatibility, dependency, decoder, hardware,
   operating-system, or security fixes;
 - no response, review, disclosure, or release timetable is promised; and

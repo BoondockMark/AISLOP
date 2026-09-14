@@ -76,9 +76,16 @@ not silently switch to fake data.
 
 - [ ] Merge through protected `main`, tag the exact reviewed commit once, and
   require all CI/release-environment approvals.
+- [ ] In the PyPI pending publisher, configure owner `BoondockMark`, repository
+  `AISLOP`, workflow `release.yml`, and environment `release` exactly. Creating
+  the `v1.0.0` tag runs the trusted-publishing job; its first successful upload
+  creates the PyPI project and converts the pending publisher into a normal
+  project publisher. Do not create the project manually under another account.
 - [ ] Confirm the clean workflow emits matching sdist/wheel, SHA-256 checksums,
   CycloneDX SBOM, provenance attestations, registry version, GitHub release, and
-  release notes. Publish via trusted publishing, never a stored PyPI token.
+  release notes. The GitHub release is published independently so its verified
+  artifacts remain available if the registry job fails. Publish to PyPI via
+  trusted publishing, never a stored PyPI token.
 - [ ] Reinstall the registry artifact and repeat deterministic acceptance. Do
   not call a release supported unless `SECURITY.md` explicitly says so.
 
