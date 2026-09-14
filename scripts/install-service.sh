@@ -59,7 +59,12 @@ if [[ ! -x "$console_executable" ]]; then
   exit 1
 fi
 
+# Install the data root explicitly so rerunning the installer also repairs an
+# existing root-owned directory.  Every directory used by ensure_data_dirs()
+# must be provisioned here because ProtectHome prevents the service from
+# creating a new child in the user's home through normal home-directory access.
 sudo install -d -o "$service_user" -g "$service_user" \
+  "$service_home/SDR-MCP-data" \
   "$service_home/SDR-MCP-data/captures" \
   "$service_home/SDR-MCP-data/plots" \
   "$service_home/SDR-MCP-data/results" \
@@ -69,6 +74,7 @@ sudo install -d -o "$service_user" -g "$service_user" \
   "$service_home/SDR-MCP-data/fldigi" \
   "$service_home/SDR-MCP-data/fldigi-config" \
   "$service_home/SDR-MCP-data/sstv" \
+  "$service_home/SDR-MCP-data/satellite" \
   "$service_home/SDR-MCP-data/matplotlib-cache"
 service_tmp="$(mktemp)"
 trap 'rm -f "$service_tmp"' EXIT

@@ -40,6 +40,7 @@ def test_installer_uses_installed_console_script_in_generated_unit(tmp_path: Pat
     call_log = tmp_path / "calls"
     unit_dir = tmp_path / "units"
     unit_dir.mkdir()
+    service_home = tmp_path / "home"
 
     _write_executable(
         fake_bin / "python3",
@@ -74,6 +75,12 @@ set -eu
 printf 'systemctl %s\\n' "$*" >> "$CALL_LOG"
 """,
     )
+    _write_executable(
+        fake_bin / "getent",
+        f"""#!/usr/bin/env bash
+printf '%s:x:1000:1000::%s:/bin/bash\\n' "$2" {service_home}
+""",
+    )
 
     env = os.environ | {
         "PATH": f"{fake_bin}:{os.environ['PATH']}",
@@ -96,6 +103,9 @@ printf 'systemctl %s\\n' "$*" >> "$CALL_LOG"
     assert f"WorkingDirectory={project}" in generated_unit
     assert f'WorkingDirectory="{project}"' not in generated_unit
     assert f'ExecStart="{executable}"' in generated_unit
+    data_root = service_home / "SDR-MCP-data"
+    assert data_root.is_dir()
+    assert (data_root / "satellite").is_dir()
     assert "SDR-MCP.service" in call_log.read_text()
     assert "RF MCP is listening on TCP port 8765." in completed.stdout
     assert ":8765/dashboard" in completed.stdout
