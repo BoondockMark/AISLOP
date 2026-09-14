@@ -38,232 +38,247 @@ invoke those tools on the user's behalf. This is much more convenient than
 giving an unpredictable machine a shell directly, while preserving much of the
 same excitement.
 
-## Project status
+## Project status and supported systems
 
-AISLOP 1.0.0 is complete and packaged as [`aislop-sdr` on PyPI](https://pypi.org/project/aislop-sdr/1.0.0/). The canonical source repository is [BoondockMark/AISLOP on GitHub](https://github.com/BoondockMark/AISLOP). Version 1.0.0 is the only planned release and is unmaintained; see the [maintenance and release policy](MAINTENANCE.md).
+AISLOP 1.0.0 is the sole published and planned release of the `aislop-sdr`
+distribution. The packaged product is **Multi-SDR RF Lab**, started with
+`rf-mcp`; it is a receive-only radio application with an MCP RF API and a web
+dashboard. Version 1.0.0 receives no maintenance or security fixes. See
+[MAINTENANCE.md](MAINTENANCE.md) before deploying it.
 
-The supported matrix is deliberately narrow:
+The release is tested with **CPython 3.12 and 3.13** on 64-bit Windows, macOS,
+and glibc-based Linux. The documented production service is systemd on
+64-bit, glibc-based Linux (kernel 5.15 or newer). Windows 11 and macOS 13 or
+newer can run the Python application, dashboard, MCP service, and fake receiver,
+but the supplied service installer and Linux decoder/audio integration do not
+apply there. PyPy, Python outside 3.12–3.13, 32-bit systems, WSL, BSD, mobile,
+and musl-based Linux are unsupported.
 
-| Runtime | Platforms | Architecture / notes |
-| --- | --- | --- |
-| CPython 3.12 or 3.13 | Windows 11 | 64-bit |
-| CPython 3.12 or 3.13 | macOS 13 or newer | 64-bit Intel or Apple silicon |
-| CPython 3.12 or 3.13 | glibc-based Linux, kernel 5.15 or newer | 64-bit |
+The old `aislop` executable is still included only for compatibility. It is a
+separate bounded workspace observer, has a different CLI and security model,
+and is not the radio application. Its frozen reference is in
+[the legacy specification](docs/specification.md#legacy-workspace-observer).
+Do not put `aislop --allow-root ...`, port 8000, or `AISLOP_AUTH_TOKEN` in an
+`rf-mcp` configuration.
 
-PyPy, other Python versions, 32-bit systems, mobile platforms, WSL, BSD, and musl-based Linux are unsupported. CI tests both supported Python versions on Windows, macOS, and Linux. AISLOP uses the official MCP Python SDK (`mcp>=1.13.1,<2`); its wheel is platform-independent.
+## Install the packaged radio application
 
-Release history is recorded in the [changelog](CHANGELOG.md), and the protected candidate,
-acceptance, publication, and rollback procedure is in the [release checklist](RELEASING.md).
+### Requirements
 
-## Set up the server
+Install as an unprivileged user in a dedicated virtual environment. The core
+package can start and can run the deterministic fake receiver without radio
+hardware. Real reception requires one of these supported command-line hardware
+stacks on `PATH`, plus the device's OS driver/USB permissions and an antenna:
 
-### 1. Install the published package
+- **Airspy HF+**: `airspyhf_info` and `airspyhf_rx` from the Airspy HF+ tools.
+  The implemented ranges are 9 kHz–31 MHz and 60–260 MHz at 768 ksample/s.
+- **RTL-SDR**: `rtl_test` and `rtl_sdr` from `rtl-sdr`. The implemented range is
+  24 MHz–1.766 GHz, with sample rates from 225,001 to 3,200,000 sample/s.
 
-Install into a dedicated virtual environment as an unprivileged user:
+Decoder integrations are optional capabilities, not Python-package
+requirements. `ffmpeg` supplies live browser audio; the WSJT-X command-line
+decoders (`jt9`, `jt4`, `wsprd`), Fldigi plus its XML-RPC/audio-loopback setup,
+and the `sstv` WAV decoder are invoked as subprocesses when their corresponding
+features are used. The scripts in `scripts/` install/configure these Linux
+integrations. Check availability with the MCP tools
+`list_digital_decoder_capabilities`, `get_fldigi_status`, and
+`list_sstv_decoder_capabilities`; absence must be treated as an unavailable
+capability, not a successful decode.
+
+### Package install
 
 ```sh
+python3 -m venv .venv
+. .venv/bin/activate                    # Windows: .venv\Scripts\activate
 python -m pip install aislop-sdr==1.0.0
+rf-mcp --version
 ```
 
-That is the exact release installation command and obtains the `aislop-sdr` distribution from [PyPI](https://pypi.org/project/aislop-sdr/1.0.0/). The installed command remains `aislop`. To work from canonical source instead, clone `https://github.com/BoondockMark/AISLOP.git`; source development uses `uv sync --all-groups`, not the release install above.
+The expected output is `rf-mcp 1.0.0`. Source development instead uses
+`uv sync --all-groups`. On systemd Linux, `scripts/install-service.sh` creates
+`.venv`, installs the checkout, and enables `SDR-MCP.service`; review the script
+and set authentication before exposing that service.
 
-The distribution also installs `rf-mcp`, the supported entry point for the
-Multi-SDR RF Lab server and its web dashboard. Run `rf-mcp --version` to verify
-the installed RF server. The `aislop` command is intentionally retained for the
-bounded, read-only workspace observer documented below.
+### Data and artifacts
 
-### 2. Verify the executable
+`RF_MCP_DATA_DIR` selects the writable data root and defaults to
+`~/SDR-MCP-data`. At startup and during operations the application creates an
+SQLite catalog named `SDR-MCP.sqlite3` (with SQLite WAL files as needed) and
+subdirectories including `captures/`, `plots/`, `results/`, `audio/`,
+`fm-surveys/`, `weak-signal/`, `fldigi/`, `sstv/`, and `satellite/`. Jobs,
+receiver configuration, schedules, observations, station memories, and artifact
+metadata persist in the catalog; IQ, JSON, plots, WAV files, exports, and SSTV
+images persist as files. Back up the database and the complete data root
+together. Uninstalling the wheel does **not** remove this data.
 
-```console
-$ aislop --version
-aislop 1.0.0
-```
+## Run and connect
 
-The packaged command's complete help is:
+`rf-mcp` accepts only `--help` and `--version`; runtime configuration is through
+environment variables. Its default is Streamable HTTP on
+`127.0.0.1:8765`, with the MCP endpoint at `/mcp`, readiness at `/health` and
+`/healthz`, and the dashboard at `http://127.0.0.1:8765/dashboard` (also `/`).
+The principal settings are:
 
-```console
-$ aislop --help
-usage: aislop [-h] [--version] --allow-root ALLOW_ROOT
-              [--transport {stdio,http}] [--host HOST] [--port PORT]
-              [--auth-token AUTH_TOKEN]
-              [--max-request-bytes MAX_REQUEST_BYTES]
-              [--request-timeout REQUEST_TIMEOUT] [--rate-limit RATE_LIMIT]
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `RF_MCP_TRANSPORT` | `streamable-http` | `streamable-http` for dashboard/API/MCP, or `stdio` for MCP only. |
+| `RF_MCP_HOST` | `127.0.0.1` | HTTP bind address. Use `0.0.0.0` only behind appropriate network controls. |
+| `RF_MCP_PORT` | `8765` | HTTP listen port. |
+| `RF_MCP_DATA_DIR` | `~/SDR-MCP-data` | Persistent catalog and artifact root. |
+| `RF_MCP_API_TOKEN` | unset | Optional HTTP bearer token; at least 32 characters from letters, digits, `. _ ~ -`. |
 
-Run the AISLOP MCP server.
-
-options:
-  -h, --help            show this help message and exit
-  --version             show program's version number and exit
-  --allow-root ALLOW_ROOT
-                        absolute readable workspace root (repeatable)
-  --transport {stdio,http}
-  --host HOST           HTTP bind host (default: loopback)
-  --port PORT           HTTP port (default: 8000)
-  --auth-token AUTH_TOKEN
-                        HTTP bearer token (or AISLOP_AUTH_TOKEN)
-  --max-request-bytes MAX_REQUEST_BYTES
-  --request-timeout REQUEST_TIMEOUT
-  --rate-limit RATE_LIMIT
-                        requests per client per minute
-```
-
-At least one absolute, existing `--allow-root` is required; repeat it to grant more roots. CLI values take precedence over built-in defaults. The sole environment variable is `AISLOP_AUTH_TOKEN`, and explicit `--auth-token` takes precedence over it. No configuration files are read. Defaults are stdio, `127.0.0.1:8000`, a 1,048,576-byte HTTP request limit, a 35-second HTTP timeout, and 60 requests per client per minute.
-
-Stdio needs no AISLOP credential. HTTP requires an ASCII bearer token of at least 32 printable, non-whitespace characters. A token authorizes all three tools against every allowed root in that server process: there are no narrower per-tool or per-root scopes and no multi-user identities. Prefer the environment variable because CLI arguments may appear in process listings. OS permissions still apply.
-
-AISLOP supports exactly MCP over local stdio and MCP Streamable HTTP. It does not support legacy HTTP+SSE, WebSocket, or TLS termination. Put a trusted TLS reverse proxy in front of HTTP before traffic crosses a network.
-
-## Connect from an external AI application
-
-The model does not connect directly. An MCP-compatible AI application (the host) starts or contacts AISLOP, discovers its tools, and presents calls for model use. The official interoperability target and test client is the official MCP Python SDK. Host products differ in the name of their top-level server collection; the minimal conventional configurations below contain all AISLOP-specific values.
-
-### Local stdio (recommended)
-
-Create the example root with `mkdir -p /tmp/aislop-workspace`, then add this server to a host on macOS or Linux:
-
-```json
-{
-  "mcpServers": {
-    "aislop": {
-      "command": "aislop",
-      "args": ["--allow-root", "/tmp/aislop-workspace"]
-    }
-  }
-}
-```
-
-On Windows, the equivalent supported-host entry is:
-
-```json
-{
-  "mcpServers": {
-    "aislop": {
-      "command": "aislop.exe",
-      "args": ["--allow-root", "C:\\Users\\Public\\aislop-workspace"]
-    }
-  }
-}
-```
-
-GUI hosts may not inherit the terminal's `PATH`. If so, replace only `command` with the absolute result of `python -c "import shutil; print(shutil.which('aislop'))"`. Standard output is reserved for MCP frames and diagnostics go to standard error.
-
-### Streamable HTTP
-
-Start the server on its default loopback address. The literal token is a tested development value, not a secret to reuse:
+Start locally:
 
 ```sh
-AISLOP_AUTH_TOKEN=aislop-local-demo-token-0123456789abcdef aislop --transport http --allow-root /tmp/aislop-workspace
+RF_MCP_DATA_DIR="$HOME/SDR-MCP-data" rf-mcp
 ```
 
-Configure an HTTP-capable host with:
+Without `RF_MCP_API_TOKEN`, every HTTP route is unauthenticated. If a token is
+set, `/health` and `/healthz` remain public, while `/mcp`, dashboard assets,
+JSON APIs, live streams, and artifact downloads require it. The dashboard
+accepts a bearer header or its login form/session cookie. MCP clients must send
+`Authorization: Bearer <token>`. The service does not terminate TLS and bearer
+authentication is not multi-user authorization; use a TLS reverse proxy,
+firewall, and a dedicated service account before binding beyond loopback.
+`scripts/configure-auth.sh` writes a generated or supplied token to root-only
+`/etc/SDR-MCP.env` for the systemd service.
+
+A conventional remote MCP host entry is:
 
 ```json
 {
   "mcpServers": {
-    "aislop": {
+    "rf-lab": {
       "type": "streamable-http",
-      "url": "http://127.0.0.1:8000/mcp",
+      "url": "http://127.0.0.1:8765/mcp",
       "headers": {
-        "Authorization": "Bearer aislop-local-demo-token-0123456789abcdef"
+        "Authorization": "Bearer replace-with-at-least-32-safe-characters"
       }
     }
   }
 }
 ```
 
-Keep a real token in the host's secret or environment facility rather than committing it. The MCP endpoint is `/mcp`. Both unauthenticated readiness endpoints (`/health` and `/healthz`) disclose only `{"status":"ok"}`. Verify one with:
-
-```sh
-curl --fail --silent http://127.0.0.1:8000/healthz
-```
-
-Restart or reload the host after saving either transport. Confirm that `aislop` is connected and advertises exactly the three tools below. If discovery fails, run `aislop --help`, then check the executable path, absolute allowed roots, working directory, token/header, endpoint, and OS permissions.
-
-### Upgrade and uninstall
-
-There is no automatic updater. Review the canonical release, upgrade with an explicit version, and verify it:
-
-```sh
-python -m pip install --upgrade aislop-sdr==1.0.0
-aislop --version
-```
-
-Version 1.0.0 is the only planned release, so this currently reinstalls or confirms it. To uninstall, stop the server, remove its host entry, and run:
-
-```sh
-python -m pip uninstall --yes aislop-sdr
-```
-
-Uninstallation does not edit host settings, virtual environments, logs, shell history, or data retained by the host. AISLOP creates no persistent configuration or index.
-
-## Use AISLOP through the AI
-
-Version 1.0 exposes three read-only tools: `inspect_path` reads bounded metadata, content, or directory entries; `scan_text` performs a bounded literal or RE2-compatible regex search; and `observe_changes` polls metadata changes using a process-local cursor. It exposes no MCP resources, resource templates, or prompts. Complete schemas, limits, and errors are in the [specification](docs/specification.md).
-
-Create deterministic example data:
-
-```sh
-mkdir -p /tmp/aislop-workspace
-printf 'hello protocol\n' > /tmp/aislop-workspace/sample.txt
-```
-
-Successful discovery from the packaged artifact returns these real tool names and required schema fields (optional fields are omitted here only for readability):
+For a host that launches local stdio servers, configure the RF executable—not
+the legacy observer—and do not set an HTTP token:
 
 ```json
 {
-  "tools": [
-    {"name": "inspect_path", "inputSchema": {"required": ["path"]}},
-    {"name": "scan_text", "inputSchema": {"required": ["path", "query"]}},
-    {"name": "observe_changes", "inputSchema": {"required": ["path"]}}
-  ],
-  "resources": [],
-  "resourceTemplates": [],
-  "prompts": []
-}
-```
-
-A valid real `tools/call` request using the documented `scan_text` schema is:
-
-```json
-{
-  "name": "scan_text",
-  "arguments": {
-    "path": "/tmp/aislop-workspace",
-    "query": "protocol",
-    "mode": "literal",
-    "case_sensitive": true,
-    "glob": "**/*",
-    "max_results": 100
+  "mcpServers": {
+    "rf-lab": {
+      "command": "/absolute/path/to/.venv/bin/rf-mcp",
+      "args": [],
+      "env": {
+        "RF_MCP_TRANSPORT": "stdio",
+        "RF_MCP_DATA_DIR": "/absolute/writable/path/SDR-MCP-data"
+      }
+    }
   }
 }
 ```
 
-It succeeds with:
+GUI hosts may not inherit the shell's `PATH`; use the absolute executable path
+and ensure receiver/decoder subprocesses are also discoverable. Restart the
+host after editing its configuration.
 
-```json
-{
-  "matches": [
-    {
-      "path": "/tmp/aislop-workspace/sample.txt",
-      "line": 1,
-      "column": 7,
-      "text": "hello protocol",
-      "text_truncated": false
-    }
-  ],
-  "files_scanned": 1,
-  "truncated": false
-}
+## Deterministic post-install verification (no SDR required)
+
+The fake receiver is a packaged test/demo backend, not an RF simulator selected
+by a production environment flag. The following verification registers it as
+the default `airspyhf` backend only in the verification process. It creates a
+deterministic 12 kHz IQ tone, exercises the real HTTP, MCP, DSP, catalog, and
+artifact paths, and never probes radio hardware.
+
+Run this sequence from an activated environment containing the installed wheel:
+
+```sh
+set -eu
+rf-mcp --version | tee /tmp/rf-mcp-version.txt
+test "$(cat /tmp/rf-mcp-version.txt)" = "rf-mcp 1.0.0"
+
+export RF_MCP_DATA_DIR="$(mktemp -d)"
+export RF_MCP_TRANSPORT=streamable-http
+export RF_MCP_HOST=127.0.0.1
+export RF_MCP_PORT=18765
+export RF_MCP_API_TOKEN=verification-token-0123456789abcdef
+
+python -c "from rf_mcp.fake_receiver import FakeStreamingReceiverBackend; from rf_mcp.receiver_backend import register_backend; register_backend(FakeStreamingReceiverBackend(name='airspyhf')); from rf_mcp.server import main; main()" >/tmp/rf-mcp.log 2>&1 &
+RF_MCP_PID=$!
+trap 'kill "$RF_MCP_PID" 2>/dev/null || true' EXIT
+
+until curl --fail --silent http://127.0.0.1:18765/healthz > /tmp/rf-health.json; do
+  kill -0 "$RF_MCP_PID"
+  sleep 0.1
+done
+python -c 'import json; d=json.load(open("/tmp/rf-health.json")); assert d["status"]=="ok" and d["service"]=="SDR-MCP" and d["version"]=="1.0.0" and d["authentication_required"] is True'
+
+curl --fail --silent \
+  -H "Authorization: Bearer $RF_MCP_API_TOKEN" \
+  http://127.0.0.1:18765/assets/rf-dashboard.js \
+  | grep -q refreshDashboard
+
+python - <<'PY'
+import asyncio, os
+from mcp import ClientSession
+from mcp.client.streamable_http import streamablehttp_client
+
+async def verify():
+    headers = {"Authorization": f"Bearer {os.environ['RF_MCP_API_TOKEN']}"}
+    async with streamablehttp_client("http://127.0.0.1:18765/mcp", headers=headers) as (read, write, _):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            tools = {tool.name for tool in (await session.list_tools()).tools}
+            required = {"get_rf_api_contract", "list_devices", "inspect_spectrum", "list_rf_jobs", "list_rf_artifacts"}
+            assert required <= tools, required - tools
+            device = (await session.call_tool("list_devices", {})).structuredContent
+            assert device["model"] == "deterministic-test-tone" and device["hardware"] is False
+            observation = (await session.call_tool("inspect_spectrum", {
+                "center_frequency_hz": 100000000,
+                "duration_seconds": 0.25,
+                "fft_size": 1024,
+                "threshold_above_noise_db": 6,
+                "include_plot": False
+            })).structuredContent
+            assert observation["receiver_backend"] == "airspyhf"
+            assert observation["sample_rate_hz"] == 768000
+            assert observation["captured_samples"] >= 192000
+            assert observation["job_id"].startswith("inspect-")
+            print(observation["job_id"])
+
+asyncio.run(verify())
+PY
+
+test -f "$RF_MCP_DATA_DIR/SDR-MCP.sqlite3"
+find "$RF_MCP_DATA_DIR" -type f -print
 ```
 
-In an AI host, the same request can be natural language:
+A successful run verifies the executable version, readiness document,
+authenticated dashboard JavaScript delivery, MCP initialization and tool
+discovery, a hardware-free observation, and persistent catalog/artifacts.
 
-```text
-Use scan_text to find the case-sensitive literal "protocol" under
-/tmp/aislop-workspace. Return at most 100 matches.
-```
+## Use the RF application
 
-Review the selected tool and arguments; the host may offer per-call approval, although AISLOP does not require it. All operations are read-only, but returned data leaves the server and may go to the host's model provider. Grant the smallest possible roots, start with non-sensitive data, and independently check results.
+The stable RF API contract is returned by `get_rf_api_contract`. Frequencies are
+integer Hz and times are UTC ISO 8601. Measurements are relative digital-domain
+levels unless a saved receiver calibration with a documented reference source
+supports a calibrated claim. The stable v1 core covers health/readiness,
+receiver discovery and coordination, spectrum inspection and analysis,
+broadcast FM, calibration, and persistent job/artifact/storage/recovery queries.
+The server also advertises specialized tools for scanning, monitoring,
+scheduling, alerts/webhooks, recordings, digital modes, SSTV, propagation,
+satellites, classification, and signal fingerprints. Discover the installed
+tool schemas rather than copying arguments from an older release.
+
+Start with `list_devices` (or discovery/coordinator tools for multiple radios),
+then call `inspect_spectrum` or `analyze_signal`. RF operations may create
+persistent jobs and artifacts even when a response embeds a preview. Use
+`list_rf_jobs`, `get_rf_job`, `list_rf_artifacts`, `get_rf_artifact`, and the
+dashboard to inspect them; use the explicit cleanup tools and confirmation
+parameters for destructive operations. Receiver control and decoder execution
+are active local side effects even though the platform is receive-only.
+Complete API, persistence, decoder, and security semantics are in
+[docs/specification.md](docs/specification.md) and
+[docs/security.md](docs/security.md).
 
 ## Best practices in AI SLOP coding
 

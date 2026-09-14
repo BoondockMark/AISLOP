@@ -1,130 +1,109 @@
-# Security architecture and release gate
+# Multi-SDR RF Lab security architecture and release gate
 
-## Scope and assets
+## Scope and trust boundaries
 
-AISLOP is a read-only MCP server. Its assets are workspace contents and names,
-the HTTP bearer token, observation cursors, tool inputs/results, and service
-availability. It does not execute commands, write workspace files, make outbound
-network requests, load plugins, provide prompts/resources, or persist telemetry.
+`rf-mcp` is receive-only in the RF sense; it is **not** a read-only process. It
+controls SDR receiver subprocesses, runs optional decoders, writes SQLite state
+and artifacts, serves a network-facing dashboard/API/MCP endpoint, can schedule
+work, and can deliver configured webhooks. Protected assets include the bearer
+token, receiver access, station configuration, locations/schedules, webhook
+secrets, raw IQ/audio/images, decoded content, catalog metadata, and service
+availability.
 
-Sensitive inputs are `--allow-root`, tool paths, search expressions and globs,
-file contents/results, cursor values, MCP request bodies, HTTP metadata, and
-`AISLOP_AUTH_TOKEN`/`--auth-token`. Paths and returned content may themselves be
-secrets. Treat every tool argument and every file as attacker-controlled.
-
-## Trust boundaries and data flow
-
-1. An MCP host and model cross the protocol boundary into the server. Pydantic
-   validates arguments before dispatch; arguments never become shell commands.
-2. The server process crosses the OS filesystem boundary. Canonical target
-   membership must be beneath an explicitly configured absolute root. Directory
-   walks do not follow symlinks. The OS account remains the final permission
+1. MCP hosts, browsers, and API clients cross the HTTP boundary. Tool schemas
+   validate structured arguments; dashboard handlers independently validate
+   their inputs. Treat all clients and model-generated arguments as untrusted.
+2. The process crosses a hardware/subprocess boundary to Airspy HF+ or RTL-SDR
+   tools, WSJT-X programs, Fldigi/audio playback, SSTV, and ffmpeg. Executables
+   and `PATH` are administrator-controlled trusted inputs. Arguments remain
+   arrays and must not pass through a shell.
+3. The process crosses a writable storage boundary at `RF_MCP_DATA_DIR`.
+   Database rows and artifact paths can contain sensitive station and received
+   data. The service account and filesystem permissions are the authorization
    boundary.
-3. Streamable HTTP crosses a network boundary. It is off by default, binds to
-   loopback by default, and requires a bearer token. TLS and trusted-client
-   identity belong at a correctly configured reverse proxy. Forwarded identity
-   headers are deliberately not trusted for authentication or rate limiting.
-4. Dependency packages cross a software-supply-chain boundary. Only PyPI's
-   reviewed `mcp` distribution and its locked transitive graph are permitted;
-   install indexes and build runners are trusted release infrastructure.
+4. Webhook delivery and satellite/space-weather refresh features cross an
+   outbound network boundary. Destinations and downloaded data are untrusted;
+   outbound firewalling and destination allowlisting belong to the deployment.
+5. Python and system packages cross a supply-chain boundary. The reviewed lock,
+   clean wheel, external decoder packages, drivers, and OS are all trusted code.
 
-The server has no outbound networking, so tool arguments cannot trigger SSRF.
-It has no subprocess, shell, template execution, or write primitive, so command
-injection arguments are data only. Adding any such capability invalidates this
-analysis and requires a new review.
+The packaged fake receiver is safe for deterministic verification only when
+explicitly registered in that process. It avoids hardware access but still
+exercises DSP, catalog writes, artifacts, HTTP, and MCP.
 
-## Secure deployment defaults and approvals
+## Network deployment and authentication
 
-- Run stdio unless remote access is necessary. HTTP defaults to `127.0.0.1`, a
-  1 MiB body, 35-second request deadline, and 60 authenticated requests per
-  source address per minute. Tool operations have a separate 30-second deadline.
-- HTTP tokens must be at least 32 printable, non-whitespace ASCII characters.
-  Prefer `AISLOP_AUTH_TOKEN`; a CLI token is visible to local process inspection.
-  Never put it in source, host configuration committed to source, URLs, or logs.
-- Grant only the narrowest read-only roots and run as a dedicated unprivileged OS
-  account without write permission, unrelated home-directory access, cloud
-  instance credentials, or unnecessary network access. Never allow `/` or a home
-  directory merely for convenience.
-- The tools are read-only and therefore request no server-side approval. The host
-  is expected to show the exact tool name and arguments and obtain user approval
-  before each call when its policy requires approval. AISLOP never interprets a
-  model assertion as approval. Root expansion, network exposure, or a future
-  write/execute/network tool must require explicit administrator configuration
-  and interactive host approval.
+HTTP defaults to `127.0.0.1:8765`. `/health` and `/healthz` are intentionally
+public and disclose status, service name, version, and whether authentication is
+required. If `RF_MCP_API_TOKEN` is unset, every other route is also public. Set a
+random token of at least 32 allowed characters before network exposure. Bearer
+comparison is constant-time. Dashboard login creates a process-local 12-hour
+HttpOnly, SameSite=Strict session; restarting invalidates sessions.
 
-## Enforced controls and limits
+The same token grants the complete MCP tool set, dashboard controls, API calls,
+live streams, and downloads. It provides neither per-user identity nor
+per-receiver/tool scopes. The application has no TLS. Keep loopback for a local
+host; otherwise deploy behind a trusted TLS reverse proxy and firewall, restrict
+source networks, impose request/body/connection/rate limits, redact credentials,
+and do not trust forwarded identity headers as authorization. The systemd helper
+stores `RF_MCP_API_TOKEN` in root-owned mode-0600 `/etc/SDR-MCP.env`.
 
-Canonical-path authorization rejects `..`, absolute-path escapes, and symlink
-escapes. Walks do not follow directory or file symlinks. Filesystem access is
-read-only. TOCTOU changes by another local process remain possible; do not share
-writable roots with an untrusted local user when stable observations matter.
+## Storage, retention, and deletion
 
-Tool paths are limited to 4,096 characters; queries to 4,096; globs to 1,024;
-cursors to 128. Inspection returns at most 1 MiB or 1,000 entries. Scans traverse
-at most 10,000 paths/100 MiB, skip individual files over 10 MiB, return at most
-1,000 matches, and truncate each returned line to 4,096 characters. Observations
-snapshot at most 10,000 paths, return at most 1,000 changes, and retain at most
-256 opaque, process-local cursors. MCP bodies default to 1 MiB. These ceilings
-prevent unconstrained input, output, memory, and traversal work.
+The SQLite WAL catalog and all subdirectories of `RF_MCP_DATA_DIR` are
+persistent. Captures and derived audio may contain intercepted communications;
+plots, filenames, decoded text, station locations, TLE/pass plans, fingerprints,
+and webhook records can also be sensitive. Apply local law and radio rules,
+collect only authorized signals, use an encrypted volume where appropriate,
+and grant the service user exclusive access. Protect database, WAL, backups,
+crash dumps, swap, browser storage, host transcripts, and proxy/system logs.
 
-HTTP compares bearer values in constant time, ignores proxy identity headers,
-rate-limits only authenticated traffic, sends generic authentication errors,
-and sets `Cache-Control: no-store` and `X-Content-Type-Options: nosniff` on policy
-responses. Health responses disclose only availability. Put an additional body,
-connection, and distributed rate limit at the reverse proxy for exposed service.
+Artifact/session cleanup and delete tools are intentionally destructive and may
+cascade through related state. Require host-side approval for all mutating,
+receiver-control, decoder, schedule, notification, and cleanup calls. Back up
+the database and artifact tree as one unit and test restoration. Uninstalling
+the package does not erase data.
 
-## Credentials, logging, retention, and redaction
+Logs and diagnostics must redact `Authorization`, dashboard cookies,
+`RF_MCP_API_TOKEN`, webhook secrets, request/response bodies, decoded payloads,
+precise locations, device serials, and sensitive paths. Capability and decoder
+output can reveal installed software and received content.
 
-The bearer token flows from environment/CLI to process memory and is compared
-only with the Authorization header. It is never returned, persisted, or logged
-by AISLOP. Reverse proxies and hosts **must** redact `Authorization`, tokens,
-cursors, request/response bodies, file content, search text, and sensitive path
-components. Log only event type, status, duration, and a generated correlation
-identifier. Disable access-log headers and body capture.
+## Subprocess and receiver controls
 
-AISLOP persists no data. Results live in the client/host according to that
-product's retention policy. Snapshot metadata (paths, sizes, timestamps and
-modes) and opaque cursors remain in process memory until consumed, evicted after
-256 entries, or process exit. The bearer token remains in memory until exit.
-Crash dumps, swap, host transcripts, proxy logs, and OS audit logs are outside
-AISLOP and must be protected or disabled as appropriate.
+Install receiver and decoder executables from trusted sources at root-controlled
+paths; do not let the service account modify executables, its virtual
+environment, or `PATH`. Device selectors and decoder settings are validated,
+but external tools and drivers remain native attack surface. Use the supplied
+systemd hardening as a baseline, a dedicated unprivileged account, narrow USB
+permissions, `NoNewPrivileges`, filesystem protection, resource limits, and
+outbound filtering. Keep the writable exception limited to `RF_MCP_DATA_DIR`.
 
-Errors intended for clients use stable codes. Operators must not add raw request
-bodies, Authorization headers, file content, or environment dumps to diagnostics.
+Long captures, scans, streams, decoder work, queued jobs, schedules, and artifact
+growth can exhaust CPU, memory, device time, and disk despite application
+bounds. Monitor `get_storage_status`, recovery/admission/job state, free space,
+process resources, and subprocess timeouts. Configure retention and pin only
+necessary evidence. A result is not calibrated dBm unless the referenced
+receiver calibration has a documented reference source. Decoder/classifier
+output is fallible and must not trigger safety-critical action without review.
 
-## Residual threats
+## Release gate and residual risk
 
-An authorized client can read all text beneath an allowed root, infer metadata,
-consume bounded resources repeatedly, and exfiltrate what it reads through the
-host. Authentication is not authorization between multiple clients. HTTP has no
-built-in TLS. A malicious writable workspace can race path checks and reads.
-Regex syntax is restricted toward RE2 compatibility, but Python's regex engine
-still executes accepted expressions under the tool deadline. Deploy OS sandboxing
-and proxy limits when these residual risks are material.
+A release requires the complete supported Python/OS test matrix; deterministic
+installed-wheel HTTP/MCP/fake-receiver acceptance; formatting, lint, typing,
+locked dependency validation and vulnerability audit; secret scan; threat-model
+review; clean build metadata; wheel-content validation (including RF modules and
+dashboard assets); checksums, SBOM, provenance attestation; and owner approval.
+External receiver/decoder versions and service configuration must be recorded in
+production because they are not pinned by the Python wheel.
 
-## Dependency provenance and release gate
+Residual risks include a stolen all-powerful token, plaintext traffic without a
+proxy, malicious/compromised native tools or drivers, unauthorized reception,
+RF-generated hostile decoder inputs, webhook data exfiltration/SSRF-like reach,
+resource exhaustion, SQLite/filesystem corruption, local races, false RF
+classification, and retention outside the server in MCP hosts and browsers.
+Version 1.0.0 is unmaintained, so passing the historical release gate does not
+imply current vulnerability support.
 
-`requirements.lock` is the committed production lock input. The direct runtime
-set is MCP, Starlette, Uvicorn, NumPy, SciPy, Matplotlib, and Pillow. NumPy and
-SciPy are core DSP dependencies, and Matplotlib is mandatory because plots are
-outputs of many advertised MCP and dashboard operations. Pillow supports
-Matplotlib and SSTV image post-processing. Satellite prediction (Skyfield)
-remains an explicitly declared feature extra; its operations detect an absent
-extra and return a capability error.
-The production graph is resolved only from the configured trusted index during
-controlled lockfile regeneration. Maintainers must inspect unexpected new
-maintainers, packages, native code, install hooks, licenses, and dependency diffs
-before accepting a lock update. Git dependencies, direct URLs, editable installs,
-and unreviewed indexes are prohibited. GitHub Actions are pinned to reviewed major
-releases and publishing uses GitHub/PyPI trusted publishing rather than a stored
-API token.
-
-Every release is blocked on the CI `test` and `quality` jobs. The quality gate
-validates every direct production dependency against the reviewed lock, checks
-the installed graph, audits known vulnerabilities, scans secrets,
-type-checks/lints, and validates built metadata.
-A maintainer must additionally confirm this threat model still matches the
-feature set and record review of the dependency diff in the release pull request.
-Any unexplained audit finding, provenance change, secret, failed negative test,
-or undocumented capability blocks release; an accepted vulnerability requires a
-time-bounded, documented exception approved by a maintainer.
+The legacy `aislop` workspace observer has a different root-confinement threat
+model and does not represent the RF application's security behavior.

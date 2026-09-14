@@ -1,295 +1,149 @@
-# AISLOP product and protocol specification
+# Multi-SDR RF Lab product and protocol specification
 
-**Version:** 1.0
+**Package/server version:** 1.0.0
+**RF API contract:** 1.0, stable
 **Protocol:** Model Context Protocol (MCP)
-**Transports:** local stdio; authenticated Streamable HTTP
+**Transport:** Streamable HTTP by default; local stdio optionally
 
-## Supported implementation stack
+## Product boundary
 
-AISLOP is implemented in Python, distributed from PyPI-compatible registries,
-and supports **CPython 3.12 and 3.13** (minimum 3.12). It uses the official
-**MCP Python SDK 1.x**; the package constrains the SDK to `>=1.30.0,<2` so a
-breaking SDK release cannot silently change the protocol contract. The root
-`pyproject.toml` is the authoritative package manifest and `requirements.lock`
-records the complete reviewed production dependency graph. NumPy, SciPy,
-Matplotlib, and Pillow are mandatory for the advertised RF analysis, plot, and
-image operations; Skyfield satellite prediction is separately installable with
-the `satellite` extra.
+The supported application in the `aislop-sdr` distribution is the `rf-mcp`
+Multi-SDR RF Lab server. It is a receive-only RF acquisition, analysis, and
+station-automation application with an MCP tool API and, in HTTP mode, a web
+dashboard and JSON/live-stream endpoints. It is not merely a filesystem
+observer and it is not read-only with respect to its own data: it records a
+catalog, artifacts, settings, schedules, alerts, and observations and can launch
+receiver and decoder subprocesses.
 
-The SDK performs MCP initialization and advertises its tool capabilities during
-discovery. Pydantic-generated JSON Schemas validate requests before dispatch,
-while tool-domain failures use the structured `aislop.error` representation
-below. The process observes SDK shutdown and cancellation signals; the HTTP
-runner additionally handles SIGINT/SIGTERM for a graceful listener shutdown.
+It requires CPython 3.12 or 3.13. The wheel contains NumPy/SciPy DSP,
+Matplotlib/Pillow artifact generation, Starlette/Uvicorn web service code, and
+the MCP Python SDK (`mcp>=1.30.0,<2`). Skyfield-backed satellite prediction is
+optional through `aislop-sdr[satellite]`.
 
-## Product scope
+## Runtime and hardware
 
-AISLOP 1.0 is a local, read-only workspace-observation server for an
-MCP-compatible AI host. It lets a user inspect a file or directory, search text,
-and poll for filesystem changes without giving the model a general-purpose
-shell. Its initial use cases are:
+The Python application is release-tested on 64-bit Windows, macOS, and
+Ubuntu/glibc Linux. The supported service deployment and integration scripts
+are Linux/systemd-specific. Supported receiver adapters are:
 
-1. understand the structure and metadata of a local project;
-2. read a bounded text file for review or summarization;
-3. find literal or regular-expression matches in text files; and
-4. observe which paths changed during a user-supervised development session.
+| Backend | External programs | Implemented tuning/sample contract |
+| --- | --- | --- |
+| Airspy HF+ (`airspyhf`) | `airspyhf_info`, `airspyhf_rx` | 9 kHz–31 MHz and 60–260 MHz; 768 ksample/s |
+| RTL-SDR (`rtl_sdr`) | `rtl_test`, `rtl_sdr` | 24 MHz–1.766 GHz; 225,001–3,200,000 sample/s |
 
-AISLOP is not a malware scanner, accessibility service, audio recorder, network
-monitor, or autonomous agent. Results are observations, not security findings.
+Drivers, device access, suitable antennas, and the utilities above are operator
+requirements, not wheel dependencies. `list_devices`,
+`discover_attached_sdr_devices`, and coordinator tools expose availability.
+Radio reception is never required for package verification: the packaged
+`FakeStreamingReceiverBackend` can be explicitly registered by a test/demo
+bootstrap and emits a deterministic IQ tone. It is not enabled by a production
+flag and must not be mistaken for attached hardware.
 
-## Protocol conventions
+## Configuration and endpoints
 
-The host may start one AISLOP process and communicate with it using MCP over
-standard input/output. Standard output is reserved for protocol frames;
-diagnostics go to standard error. Paths may be absolute or relative to the
-process working directory. After lexical normalization and symlink resolution,
-every target must remain beneath one of the roots configured at startup.
+`rf-mcp` has `--help` and `--version`; it reads runtime configuration from the
+environment. `RF_MCP_TRANSPORT` defaults to `streamable-http` and may be set to
+`stdio`. HTTP uses `RF_MCP_HOST` (default `127.0.0.1`) and `RF_MCP_PORT`
+(default `8765`). The routes are:
 
-All schemas below use JSON Schema draft 2020-12. Every successful tool result has
-one JSON object in an MCP structured-content result and an equivalent JSON text
-content block. Invalid arguments use MCP error `-32602`; an unavailable method
-uses `-32601`; other tool failures return `isError: true` with this object:
+- `/mcp`: MCP Streamable HTTP endpoint;
+- `/` and `/dashboard`: dashboard document;
+- `/assets/rf-dashboard.css` and `/assets/rf-dashboard.js`: packaged assets;
+- `/health` and `/healthz`: unauthenticated readiness/status;
+- `/api/...`: dashboard operations, catalog views, and live audio/waterfall; and
+- `/artifacts/<id>` and `/sstv-images/<id>`: catalog-mediated downloads.
 
-```json
-{
-  "$id": "aislop.error",
-  "type": "object",
-  "required": ["code", "message", "retryable"],
-  "properties": {
-    "code": {"enum": ["OUTSIDE_ROOT", "NOT_FOUND", "NOT_READABLE", "NOT_TEXT", "LIMIT_EXCEEDED", "INVALID_PATTERN", "CURSOR_EXPIRED", "TIMEOUT", "CANCELLED", "IO_ERROR"]},
-    "message": {"type": "string"},
-    "retryable": {"type": "boolean"},
-    "path": {"type": "string"}
-  },
-  "additionalProperties": false
-}
-```
+`RF_MCP_API_TOKEN`, when set, must be at least 32 characters and contain only
+ASCII letters, digits, dot, underscore, tilde, or hyphen. It protects all HTTP
+routes except health. MCP and non-browser API clients send a bearer header; the
+dashboard can exchange the token for a process-local, 12-hour, HttpOnly,
+SameSite=Strict session cookie. An API token is invalid with stdio transport.
+There is no TLS termination, user identity, role, or scope system. A non-loopback
+bind therefore requires a trusted TLS reverse proxy, firewall, dedicated OS
+account, and external access policy.
 
-Tool calls have a hard 30-second deadline. AISLOP also honors MCP cancellation;
-both deadline expiry and cancellation stop traversal promptly and return
-`TIMEOUT` or `CANCELLED`. Partial results are never returned on error. File
-contents and matches are UTF-8; binary or invalid UTF-8 input returns `NOT_TEXT`.
-Directory traversal never follows symlinked directories.
+## RF API contract
 
-## Version 1.0 tools
+`get_rf_api_contract` is the machine-readable authority. It declares Hz for
+frequency, UTC ISO 8601 timestamps, and relative digital-domain measurements by
+default. A dBm claim requires saved calibration with a documented reference
+source. Clients must ignore unknown response fields and handle documented error
+types.
 
-Version 1.0 exposes exactly the following three tools.
+The compatibility-guaranteed v1 core consists of:
 
-### `inspect_path`
+- contract, health, and release-readiness tools;
+- receiver device discovery, saved receiver inventory, selection, and
+  qualification;
+- `inspect_spectrum`, `analyze_signal`, and `receive_broadcast_fm`;
+- receiver calibration save/get/list operations; and
+- persistent RF job, artifact, storage, and recovery queries.
 
-**Purpose:** Return metadata for a file or directory and, when requested, a
-bounded text-file excerpt or a bounded directory listing.
+Installed discovery also advertises specialized tools for multi-receiver
+coordination, admission queues, live listening/waterfall, station memory,
+monitoring and scans, presets and schedules, alerts and webhooks, native digital
+analysis, external weak-signal/Fldigi/SSTV decoding, recording sessions,
+propagation, satellite planning/reception/telemetry, classification, and signal
+fingerprints. These tools have real side effects in the application data root
+and/or attached receiver. Clients must use MCP discovery for their exact JSON
+schemas; this document deliberately does not duplicate hundreds of generated
+fields.
 
-**Input schema:**
+The API contract describes how a hypothetical later version would evolve:
+minor versions may add tools, optional parameters, enum values, and response
+fields; patches fix defects without intentional contract changes; removals or
+required-field changes require a major version, with at least one minor release
+of deprecation notice. This compatibility language does **not** promise another
+release; project policy currently supports only the unmaintained 1.0.0 release.
 
-```json
-{
-  "type": "object",
-  "required": ["path"],
-  "properties": {
-    "path": {"type": "string", "minLength": 1},
-    "include_content": {"type": "boolean", "default": false},
-    "max_bytes": {"type": "integer", "minimum": 1, "maximum": 1048576, "default": 65536},
-    "max_entries": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 200}
-  },
-  "additionalProperties": false
-}
-```
+## Jobs, catalog, and artifacts
 
-**Output schema:**
+`RF_MCP_DATA_DIR` defaults to `~/SDR-MCP-data`. The catalog is
+`SDR-MCP.sqlite3`, configured for SQLite WAL. It persists jobs, artifacts,
+receivers, calibrations, presets, schedules, alerts, webhook destinations and
+deliveries, station memories, recording sessions, decoder records, satellite
+state, and other station metadata. Startup marks abandoned running jobs as
+interrupted so recovery status is observable.
 
-```json
-{
-  "type": "object",
-  "required": ["path", "kind", "size", "modified_at", "truncated"],
-  "properties": {
-    "path": {"type": "string"},
-    "kind": {"enum": ["file", "directory", "symlink", "other"]},
-    "size": {"type": "integer", "minimum": 0},
-    "modified_at": {"type": "string", "format": "date-time"},
-    "content": {"type": "string"},
-    "entries": {"type": "array", "items": {"type": "string"}},
-    "truncated": {"type": "boolean"}
-  },
-  "additionalProperties": false
-}
-```
+Payload files are stored below the same root in `captures`, `plots`, `results`,
+`audio`, `fm-surveys`, `weak-signal`, `fldigi`, `sstv`, and `satellite` trees.
+Artifact tools expose cataloged files and explicit pin/cleanup operations.
+Deleting jobs, records, sessions, or old artifacts is a write/destructive action
+and may require a `confirm_delete`-style parameter. Backups must capture the
+SQLite database and artifact tree consistently. Neither wheel uninstall nor
+process shutdown removes them.
 
-- **Errors:** `OUTSIDE_ROOT`, `NOT_FOUND`, `NOT_READABLE`, `NOT_TEXT`,
-  `LIMIT_EXCEEDED`, `TIMEOUT`, `CANCELLED`, `IO_ERROR`, plus `-32602`.
-- **Side effects:** None; filesystem access is read-only.
-- **Required permissions:** OS read and directory-search permission for the
-  target, and membership in a configured root.
-- **Timeout behavior:** The common 30-second deadline applies; reaching
-  `max_bytes` or `max_entries` succeeds with `truncated: true`.
-- **User approval:** Not required by AISLOP. The host may impose approval.
+## Subprocess integrations
 
-### `scan_text`
+Receiver backends execute fixed-structure argument arrays for their selected
+utilities and stream IQ from subprocess pipes. Optional decoders execute:
 
-**Purpose:** Search regular files under a file or directory for a literal string
-or RE2-compatible regular expression, returning bounded, line-oriented matches.
+- WSJT-X command-line programs (`jt9`, `jt4`, `wsprd`) for supported weak modes;
+- Fldigi via its XML-RPC service plus a configured tokenized playback argument;
+- the `sstv` command-line WAV decoder; and
+- `ffmpeg` for encoded live dashboard audio.
 
-**Input schema:**
+Executable paths/names may be configured with the documented `RF_MCP_*`
+variables in the relevant capability output and installer scripts. Input values
+must never be concatenated into a shell command. Decoder availability and output
+are diagnostic evidence, not guaranteed signal identification.
 
-```json
-{
-  "type": "object",
-  "required": ["path", "query"],
-  "properties": {
-    "path": {"type": "string", "minLength": 1},
-    "query": {"type": "string", "minLength": 1, "maxLength": 4096},
-    "mode": {"enum": ["literal", "regex"], "default": "literal"},
-    "case_sensitive": {"type": "boolean", "default": true},
-    "glob": {"type": "string", "default": "**/*"},
-    "max_results": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 100}
-  },
-  "additionalProperties": false
-}
-```
+## Deterministic acceptance
 
-**Output schema:**
+The canonical post-install sequence is in the README. It checks `rf-mcp
+--version`, polls `/healthz`, downloads the authenticated dashboard JavaScript,
+initializes MCP and discovers the stable tools, registers the packaged fake as
+the default receiver, calls `list_devices` and `inspect_spectrum`, and verifies
+the SQLite catalog/artifact files. This is the release acceptance path on every
+supported OS/Python pair and requires no physical radio.
 
-```json
-{
-  "type": "object",
-  "required": ["matches", "files_scanned", "truncated"],
-  "properties": {
-    "matches": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["path", "line", "column", "text"],
-        "properties": {
-          "path": {"type": "string"},
-          "line": {"type": "integer", "minimum": 1},
-          "column": {"type": "integer", "minimum": 1},
-          "text": {"type": "string"}
-        },
-        "additionalProperties": false
-      }
-    },
-    "files_scanned": {"type": "integer", "minimum": 0},
-    "truncated": {"type": "boolean"}
-  },
-  "additionalProperties": false
-}
-```
+## Legacy workspace observer
 
-- **Errors:** `OUTSIDE_ROOT`, `NOT_FOUND`, `NOT_READABLE`, `INVALID_PATTERN`,
-  `LIMIT_EXCEEDED`, `TIMEOUT`, `CANCELLED`, `IO_ERROR`, plus `-32602`. Binary
-  files are skipped rather than reported as errors.
-- **Side effects:** None; filesystem access is read-only.
-- **Required permissions:** OS read and directory-search permission for every
-  traversed path, and membership of the starting path in a configured root.
-- **Timeout behavior:** The common deadline applies; reaching `max_results`
-  succeeds with `truncated: true`. At most 10,000 files or 100 MiB are scanned;
-  crossing either traversal cap returns `LIMIT_EXCEEDED`.
-- **User approval:** Not required by AISLOP. The host may impose approval.
-
-### `observe_changes`
-
-**Purpose:** Compare current file metadata with a process-local snapshot and
-return paths created, modified, or deleted since a cursor was issued.
-
-**Input schema:**
-
-```json
-{
-  "type": "object",
-  "required": ["path"],
-  "properties": {
-    "path": {"type": "string", "minLength": 1},
-    "cursor": {"type": "string"},
-    "glob": {"type": "string", "default": "**/*"},
-    "max_changes": {"type": "integer", "minimum": 1, "maximum": 1000, "default": 200}
-  },
-  "additionalProperties": false
-}
-```
-
-Omitting `cursor` establishes a baseline and therefore returns no changes.
-
-**Output schema:**
-
-```json
-{
-  "type": "object",
-  "required": ["cursor", "changes", "truncated"],
-  "properties": {
-    "cursor": {"type": "string"},
-    "changes": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["path", "type"],
-        "properties": {
-          "path": {"type": "string"},
-          "type": {"enum": ["created", "modified", "deleted"]}
-        },
-        "additionalProperties": false
-      }
-    },
-    "truncated": {"type": "boolean"}
-  },
-  "additionalProperties": false
-}
-```
-
-- **Errors:** `OUTSIDE_ROOT`, `NOT_FOUND`, `NOT_READABLE`, `CURSOR_EXPIRED`,
-  `LIMIT_EXCEEDED`, `TIMEOUT`, `CANCELLED`, `IO_ERROR`, plus `-32602`.
-- **Side effects:** Stores an in-memory metadata snapshot and invalidates the
-  supplied cursor after a successful comparison. It does not modify files.
-- **Required permissions:** OS metadata-read and directory-search permission for
-  traversed paths, and membership of the starting path in a configured root.
-- **Timeout behavior:** The common deadline applies. At most 10,000 paths are
-  observed; crossing that cap returns `LIMIT_EXCEEDED`. Reaching `max_changes`
-  succeeds with `truncated: true` and a cursor representing the full new scan.
-- **User approval:** Not required by AISLOP. The host may impose approval.
-
-## Resources and prompts
-
-Version 1.0 exposes **no MCP resources, resource templates, or prompts**. File
-access is deliberately available only through the bounded tools above. MCP
-discovery therefore returns empty resource and prompt lists.
-
-## Platform, deployment, and security
-
-- **Operating systems:** 64-bit Windows 11, macOS 13 or newer, and glibc-based
-  Linux distributions with kernel 5.15 or newer.
-- **Runtime:** CPython 3.12 or 3.13. Other Python implementations and versions
-  are unsupported.
-- **Deployment model:** One unprivileged process installed into a virtual
-  environment. Stdio is recommended. Streamable HTTP is intended for a
-  single-user, explicitly configured deployment.
-- **Configuration:** The executable is `aislop`; repeated `--allow-root PATH`
-  arguments define readable roots and at least one is required. The default is
-  stdio. `--transport http` serves Streamable HTTP at `/mcp` and health probes
-  at `/health` and `/healthz`. HTTP binds to `127.0.0.1:8000` by default.
-- **HTTP security:** HTTP always requires a bearer token supplied by
-  `--auth-token` or `AISLOP_AUTH_TOKEN`. Non-loopback binds additionally require
-  at least 32 token characters. Request bodies default to a 1 MiB maximum,
-  requests time out after 35 seconds, and tool work retains its 30-second
-  deadline. Health checks deliberately require no authentication and reveal
-  only `{"status":"ok"}`. Deploy TLS at a trusted reverse proxy before traffic
-  crosses a network; AISLOP itself does not terminate TLS.
-- **Trust boundaries:** The host and user are trusted to choose roots and review
-  model requests. The model, tool arguments, files within roots, filenames, and
-  file contents are untrusted. The OS process boundary and root/cap enforcement
-  protect files outside configured roots. AISLOP provides no confidentiality
-  boundary between the host/model and allowed files: returned content is sent to
-  the host and may be forwarded to its model provider.
-- **Approval policy:** These read-only tools do not require server-side approval.
-  Users should configure host-side per-call approval when allowed roots contain
-  private or regulated data.
-
-## Deferred beyond 1.0
-
-The following are explicitly out of scope: network transports other than
-Streamable HTTP; multi-user authorization; write, delete,
-rename, command-execution, and version-control tools; live push notifications
-and persistent watchers; persistent indexes or cursor state; MCP resources and
-prompts; OCR, image, audio, microphone, camera, and network inspection; malware,
-secret, dependency, semantic, or vulnerability scanning; archive traversal;
-non-UTF-8 decoding; ignore-file semantics; remote filesystems and cloud storage;
-plugins; telemetry; automatic updates; container/server deployment; and support
-for mobile OSes, WSL, BSD, Python 3.11 or earlier, or Python 3.14 or later.
+The distribution retains `aislop` solely for compatibility. It is a separate
+bounded filesystem observer exposing `inspect_path`, `scan_text`, and
+`observe_changes` over stdio or authenticated Streamable HTTP. It requires one
+or more `--allow-root` arguments; its HTTP defaults are `127.0.0.1:8000`,
+endpoint `/mcp`, and token variable `AISLOP_AUTH_TOKEN`. It creates no persistent
+index. These command names, port, variables, capabilities, and threat model do
+not apply to `rf-mcp`; no new radio documentation or host configuration should
+use them.
