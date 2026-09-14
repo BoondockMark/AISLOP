@@ -155,6 +155,36 @@ Start locally:
 RF_MCP_DATA_DIR="$HOME/SDR-MCP-data" rf-mcp
 ```
 
+Keep that process running while using the dashboard. A successful HTTP startup
+prints a Uvicorn message containing `http://127.0.0.1:8765`; verify the public
+readiness route before opening the browser:
+
+```sh
+curl --fail http://127.0.0.1:8765/healthz
+```
+
+If the browser reports that the site cannot be reached, this is a listener or
+network-location problem, not a missing API token. Check the following:
+
+1. Start `rf-mcp`, not the legacy `aislop` command, from the activated virtual
+   environment. `rf-mcp --version` should work in the same shell.
+2. Leave `RF_MCP_TRANSPORT` unset or set it to `streamable-http`. The `stdio`
+   transport is for a host-managed MCP subprocess and does not start a web
+   server or dashboard.
+3. Read the server's terminal output. A startup exception means there is no
+   listener; on Linux/macOS, `curl --verbose http://127.0.0.1:8765/healthz` and
+   `ss -ltn | grep 8765` distinguish that case from a browser problem. Also
+   check that another process is not already using port 8765.
+4. Interpret `127.0.0.1` as the machine where the browser runs. If `rf-mcp`
+   runs in a container, VM, WSL instance, SSH host, or another computer, its
+   loopback address is not the browser machine's loopback address. Publish or
+   forward port 8765, and set `RF_MCP_HOST=0.0.0.0` only with an API token and
+   appropriate firewall/TLS controls. For SSH, a local tunnel such as
+   `ssh -L 8765:127.0.0.1:8765 user@server` avoids exposing the listener.
+
+Changing the configured port changes both checks and the dashboard URL. For
+example, with `RF_MCP_PORT=9000`, use `http://127.0.0.1:9000/dashboard`.
+
 Without `RF_MCP_API_TOKEN`, every HTTP route is unauthenticated. If a token is
 set, `/health` and `/healthz` remain public, while `/mcp`, dashboard assets,
 JSON APIs, live streams, and artifact downloads require it. The dashboard
