@@ -40,7 +40,7 @@ same excitement.
 
 ## Project status and supported systems
 
-AISLOP 1.0.0 is the sole published and planned release of the `aislop-sdr`
+AISLOP 1.0.0 is the sole planned release of the `aislop-sdr`
 distribution. The packaged product is **Multi-SDR RF Lab**, started with
 `rf-mcp`; it is a receive-only radio application with an MCP RF API and a web
 dashboard. Version 1.0.0 receives no maintenance or security fixes. See
@@ -87,17 +87,39 @@ capability, not a successful decode.
 
 ### Package install
 
+The `aislop-sdr` project is not currently active on PyPI: its trusted-publisher
+registration is pending. Consequently, `pip install aislop-sdr==1.0.0` will not
+work until the repository owner completes the first trusted publication. Do not
+install a similarly named, unverified distribution or remove the version pin.
+
+Until PyPI publication succeeds, install from a reviewed repository checkout:
+
 ```sh
+git clone https://github.com/BoondockMark/AISLOP.git
+cd AISLOP
 python3 -m venv .venv
 . .venv/bin/activate                    # Windows: .venv\Scripts\activate
-python -m pip install aislop-sdr==1.0.0
+python -m pip install .
 rf-mcp --version
 ```
 
-The expected output is `rf-mcp 1.0.0`. Source development instead uses
-`uv sync --all-groups`. On systemd Linux, `scripts/install-service.sh` creates
-`.venv`, installs the checkout, and enables `SDR-MCP.service`; review the script
-and set authentication before exposing that service.
+For a reproducible installation, check out the reviewed commit (or the
+`v1.0.0` tag once it exists) before running `pip install .`; the default branch
+can change. The expected output is `rf-mcp 1.0.0`.
+
+After a tagged release completes, the same wheel and source archive are attached
+to the [GitHub v1.0.0 release](https://github.com/BoondockMark/AISLOP/releases/tag/v1.0.0),
+so they remain an installation source even if PyPI publishing fails. Download
+the wheel for offline inspection, verify it against `SHA256SUMS` from that
+release, and install its local path with `python -m pip install
+./aislop_sdr-1.0.0-py3-none-any.whl`.
+
+Once the [PyPI project](https://pypi.org/project/aislop-sdr/) is active, the
+short installation command is `python -m pip install aislop-sdr==1.0.0`.
+Source development instead uses `uv sync --all-groups`. On systemd Linux,
+`scripts/install-service.sh` creates `.venv`, installs the checkout, and enables
+`SDR-MCP.service`; review the script and set authentication before exposing that
+service.
 
 ### Data and artifacts
 
