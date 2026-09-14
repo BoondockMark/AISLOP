@@ -119,7 +119,9 @@ short installation command is `python -m pip install aislop-sdr==1.0.0`.
 Source development instead uses `uv sync --all-groups`. On systemd Linux,
 `scripts/install-service.sh` creates `.venv`, installs the checkout, and enables
 `SDR-MCP.service`; review the script and set authentication before exposing that
-service.
+service. Run `scripts/uninstall-service.sh` to remove the unit, environment,
+virtual environment, and service data, or add `--keep-data` to preserve captures
+and the catalog.
 
 ### Data and artifacts
 
