@@ -166,21 +166,35 @@ curl --fail http://127.0.0.1:8765/healthz
 If the browser reports that the site cannot be reached, this is a listener or
 network-location problem, not a missing API token. Check the following:
 
-1. Start `rf-mcp`, not the legacy `aislop` command, from the activated virtual
+1. Include the configured port in the browser URL. For a machine whose hostname
+   is `minirackdisplay`, the default dashboard URL is
+   **`http://minirackdisplay:8765/dashboard`**, not
+   `http://minirackdisplay`. The latter uses port 80, but RF MCP listens on port
+   8765 by default. Test the same hostname and port that the browser uses with
+   `curl --verbose http://minirackdisplay:8765/healthz`.
+2. Start `rf-mcp`, not the legacy `aislop` command, from the activated virtual
    environment. `rf-mcp --version` should work in the same shell.
-2. Leave `RF_MCP_TRANSPORT` unset or set it to `streamable-http`. The `stdio`
+3. Leave `RF_MCP_TRANSPORT` unset or set it to `streamable-http`. The `stdio`
    transport is for a host-managed MCP subprocess and does not start a web
    server or dashboard.
-3. Read the server's terminal output. A startup exception means there is no
+4. Read the server's terminal output. A startup exception means there is no
    listener; on Linux/macOS, `curl --verbose http://127.0.0.1:8765/healthz` and
-   `ss -ltn | grep 8765` distinguish that case from a browser problem. Also
-   check that another process is not already using port 8765.
-4. Interpret `127.0.0.1` as the machine where the browser runs. If `rf-mcp`
+   `ss -ltnp 'sport = :8765'` distinguish that case from a browser problem. A
+   listener shown as `127.0.0.1:8765` accepts only same-machine connections;
+   the packaged systemd unit uses `0.0.0.0:8765`. Also check that another
+   process is not already using port 8765.
+5. Interpret `127.0.0.1` as the machine where the browser runs. If `rf-mcp`
    runs in a container, VM, WSL instance, SSH host, or another computer, its
    loopback address is not the browser machine's loopback address. Publish or
    forward port 8765, and set `RF_MCP_HOST=0.0.0.0` only with an API token and
    appropriate firewall/TLS controls. For SSH, a local tunnel such as
    `ssh -L 8765:127.0.0.1:8765 user@server` avoids exposing the listener.
+6. From the browser machine, check `getent hosts minirackdisplay` (or
+   `nslookup minirackdisplay`) and compare it with the server's addresses from
+   `hostname -I`. If the hostname resolves to the wrong address, fix local DNS
+   or `/etc/hosts`. If name resolution is correct but the remote curl fails,
+   allow TCP port 8765 through the host firewall and any container/VM port
+   publishing layer.
 
 Changing the configured port changes both checks and the dashboard URL. For
 example, with `RF_MCP_PORT=9000`, use `http://127.0.0.1:9000/dashboard`.

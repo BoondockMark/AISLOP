@@ -82,7 +82,13 @@ printf 'systemctl %s\\n' "$*" >> "$CALL_LOG"
         "CALL_LOG": str(call_log),
         "USER": os.environ.get("USER", "root"),
     }
-    subprocess.run([project / "scripts" / "install-service.sh"], check=True, env=env)
+    completed = subprocess.run(
+        [project / "scripts" / "install-service.sh"],
+        check=True,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
 
     executable = project / ".venv" / "bin" / "rf-mcp"
     generated_unit = (unit_dir / "SDR-MCP.service").read_text()
@@ -90,3 +96,6 @@ printf 'systemctl %s\\n' "$*" >> "$CALL_LOG"
     assert f'WorkingDirectory="{project}"' in generated_unit
     assert f'ExecStart="{executable}"' in generated_unit
     assert "SDR-MCP.service" in call_log.read_text()
+    assert "RF MCP is listening on TCP port 8765." in completed.stdout
+    assert ":8765/dashboard" in completed.stdout
+    assert "without it connects" in completed.stdout

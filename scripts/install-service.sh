@@ -85,3 +85,14 @@ sudo install -m 0644 "$service_tmp" "$unit_dir/SDR-MCP.service"
 sudo systemctl daemon-reload
 sudo systemctl enable --now SDR-MCP.service
 sudo systemctl --no-pager --full status SDR-MCP.service
+
+public_host="$(hostname -f 2>/dev/null || hostname)"
+cat <<EOF
+
+RF MCP is listening on TCP port 8765.
+Open the dashboard at: http://${public_host}:8765/dashboard
+
+The :8765 port is required. Opening http://${public_host} without it connects
+to the default HTTP port (80), where this service is not listening.
+Verify remote access with: curl --fail http://${public_host}:8765/healthz
+EOF
