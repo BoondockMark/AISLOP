@@ -10,6 +10,34 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
 from ollama import AsyncClient
 
+# Keep the model-facing tool schema small. The remote AISLOP server still
+# advertises its complete API, but this supervised client gives Ollama only the
+# common discovery, receive, analysis, scan, and result-retrieval operations.
+ESSENTIAL_TOOL_NAMES = frozenset(
+    {
+        "get_rf_api_contract",
+        "get_server_health",
+        "list_devices",
+        "list_digital_decoder_capabilities",
+        "list_sstv_decoder_capabilities",
+        "inspect_spectrum",
+        "analyze_signal",
+        "receive_broadcast_fm",
+        "decode_digital_signal",
+        "decode_sstv",
+        "start_band_scan",
+        "get_band_scan_status",
+        "get_band_scan_results",
+        "stop_band_scan",
+        "list_rf_jobs",
+        "get_rf_job",
+        "list_rf_artifacts",
+        "get_rf_artifact",
+        "get_storage_status",
+        "list_fm_stations",
+    }
+)
+
 
 def required_environment(name: str) -> str:
     value = os.getenv(name, "").strip()
@@ -27,6 +55,22 @@ def ollama_tool(tool: object) -> dict[str, object]:
             "parameters": tool.inputSchema,
         },
     }
+
+
+def select_essential_tools(discovered_tools: list[object]) -> list[object]:
+    """Return the curated model-facing tools, failing on a mismatched server API."""
+    by_name = {tool.name: tool for tool in discovered_tools}
+    missing = ESSENTIAL_TOOL_NAMES - by_name.keys()
+    if missing:
+        names = ", ".join(sorted(missing))
+        raise RuntimeError(f"AISLOP server is missing essential tools: {names}")
+    return [by_name[name] for name in sorted(ESSENTIAL_TOOL_NAMES)]
+
+
+def require_allowed_tool(tool_name: str) -> None:
+    """Enforce the allowlist even if a model fabricates an undisclosed tool call."""
+    if tool_name not in ESSENTIAL_TOOL_NAMES:
+        raise RuntimeError(f"Model requested non-allowlisted tool: {tool_name}")
 
 
 def result_text(result: object) -> str:
@@ -59,8 +103,13 @@ async def main() -> None:
     async with streamablehttp_client(url, headers=headers) as (read, write, _):
         async with ClientSession(read, write) as session:
             await session.initialize()
-            tools = [ollama_tool(tool) for tool in (await session.list_tools()).tools]
-            print(f"Connected to {url}; discovered {len(tools)} tools.")
+            discovered_tools = (await session.list_tools()).tools
+            selected_tools = select_essential_tools(discovered_tools)
+            tools = [ollama_tool(tool) for tool in selected_tools]
+            print(
+                f"Connected to {url}; discovered {len(discovered_tools)} tools and "
+                f"exposed {len(tools)} essential tools to Ollama."
+            )
 
             while prompt := (await asyncio.to_thread(input, "you> ")).strip():
                 messages.append({"role": "user", "content": prompt})
@@ -73,6 +122,7 @@ async def main() -> None:
                         break
 
                     for call in calls:
+                        require_allowed_tool(call.function.name)
                         result = await session.call_tool(
                             call.function.name, call.function.arguments
                         )

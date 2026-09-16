@@ -90,8 +90,18 @@ Use `py -3.12` instead if that is the supported interpreter installed on the
 PC. Environment variables above last only for that PowerShell process and keep
 the token out of the command history. Do not put the token in a URL.
 
-The client discovers tool definitions from the Pi, passes them to the local
-Ollama model, and relays requested tool calls back to the Pi. Start with a
+The client discovers tool definitions from the Pi, but passes only a curated
+20-tool starter set to the local Ollama model on each request. This reduces the
+schema context consumed by the common discovery, spectrum, FM, digital, SSTV,
+band-scan, job, artifact, and storage workflows. It also rejects a tool call
+outside that allowlist if the model invents one. Edit `ESSENTIAL_TOOL_NAMES` in
+`ollama_remote_client.py` when a different workflow needs more tools; the Pi
+continues to advertise the complete API to other MCP clients.
+
+This is a client-side reduction, not a server-side authorization boundary. The
+bearer token still grants access to every RF tool to software that calls the Pi
+directly. The selected tool schemas are sent with every Ollama chat request, so
+keeping this set focused reduces repeated input-token use. Start with a
 non-mutating prompt:
 
 ```text
@@ -114,7 +124,8 @@ Invoke-RestMethod http://192.168.1.20:8765/healthz
 
 `/healthz` is intentionally public and only proves reachability/readiness. A
 successful tool listing additionally proves authentication and MCP transport.
-The example prints the discovered tool count after it connects.
+The example prints both the discovered server-tool count and the 20 tools it
+exposes to Ollama after it connects.
 
 | Symptom | Action |
 | --- | --- |
@@ -123,4 +134,3 @@ The example prints the discovered tool count after it connects.
 | Health works but MCP fails | Confirm `RF_MCP_URL` ends in `/mcp` and that the service uses `streamable-http`. |
 | No receiver appears | Diagnose drivers, USB permissions, utilities, and the SDR on the Pi—not on Windows. |
 | Model never calls a tool | Select an Ollama model with tool-calling support and keep Ollama running locally. |
-
