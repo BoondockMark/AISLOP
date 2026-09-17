@@ -11,7 +11,7 @@ from pathlib import Path
 
 EXPECTED_LICENSE = "MIT"
 EXPECTED_NAME = "aislop-sdr"
-EXPECTED_PYTHON = ">=3.12,<3.14"
+EXPECTED_PYTHON = ">=3.12,<3.15"
 EXPECTED_SCRIPTS = (
     "aislop = aislop.server:main",
     "rf-mcp = rf_mcp.server:main",

@@ -46,12 +46,12 @@ distribution. The packaged product is **Multi-SDR RF Lab**, started with
 dashboard. Version 1.0.0 receives no maintenance or security fixes. See
 [MAINTENANCE.md](MAINTENANCE.md) before deploying it.
 
-The release is tested with **CPython 3.12 and 3.13** on 64-bit Windows, macOS,
-and glibc-based Linux. The documented production service is systemd on
+The release is tested with **CPython 3.12, 3.13, and 3.14** on 64-bit Windows,
+macOS, and glibc-based Linux. The documented production service is systemd on
 64-bit, glibc-based Linux (kernel 5.15 or newer). Windows 11 and macOS 13 or
 newer can run the Python application, dashboard, MCP service, and fake receiver,
 but the supplied service installer and Linux decoder/audio integration do not
-apply there. PyPy, Python outside 3.12–3.13, 32-bit systems, WSL, BSD, mobile,
+apply there. PyPy, Python outside 3.12–3.14, 32-bit systems, WSL, BSD, mobile,
 and musl-based Linux are unsupported.
 
 The old `aislop` executable is still included only for compatibility. It is a

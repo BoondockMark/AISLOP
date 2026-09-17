@@ -16,8 +16,8 @@ rules so clients can interpret the installed server. Those rules constrain any
 hypothetical future release; they are not a commitment to produce or support
 one. The RF API version is distinct from the package version.
 
-The supported-at-release runtime matrix is CPython 3.12/3.13 on 64-bit Windows,
-macOS, and glibc Linux. The systemd deployment and decoder integration are
+The supported-at-release runtime matrix is CPython 3.12/3.13/3.14 on 64-bit
+Windows, macOS, and glibc Linux. The systemd deployment and decoder integration are
 Linux-specific, and real receivers additionally depend on external drivers and
 utilities. “Supported at release” means acceptance was run for 1.0.0, not that
 future OS, Python, hardware, decoder, or browser changes will be addressed.

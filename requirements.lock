@@ -1,4 +1,4 @@
-# Fully pinned CPython 3.12/3.13 production graph reviewed 2026-09-13.
+# Fully pinned CPython 3.12/3.13/3.14 production graph reviewed 2026-09-17.
 # Source: https://pypi.org/simple (sdist/wheel provenance); no URLs or VCS inputs.
 # Regenerate and review with: uv pip compile pyproject.toml -o requirements.lock
 annotated-doc==0.0.5
