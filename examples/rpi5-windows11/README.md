@@ -79,6 +79,59 @@ py -3.13 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 ollama pull <tool-capable-model>
+```
+
+### Configure a reusable `.env` file
+
+The Python client reads normal process environment variables; Python does not
+automatically read a `.env` file. This example includes `run-client.ps1` to load
+the three required settings from a local `.env` into the child Python process.
+Create it from the safe template:
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+Set all three values in `.env`:
+
+```dotenv
+RF_MCP_URL=http://192.168.1.20:8765/mcp
+RF_MCP_API_TOKEN=paste-the-token-printed-by-configure-auth-on-the-pi
+OLLAMA_MODEL=the-exact-name-shown-by-ollama-list
+```
+
+`RF_MCP_URL` is the Pi's stable LAN address (or DNS name), including port 8765
+and the `/mcp` suffix. `RF_MCP_API_TOKEN` is the token printed once by
+`configure-auth.sh`; enter only its value, without quotes and without the
+`Bearer ` prefix. `OLLAMA_MODEL` must exactly match a tool-capable model already
+shown by `ollama list`. Values in this example must not contain inline comments.
+
+The repository ignores `.env` files, but treat this file as a password: do not
+commit, share, or copy it into logs. The template contains placeholders only.
+Ensure the Ollama desktop app is running (or run `ollama serve` in a separate
+PowerShell window), then launch the client:
+
+```powershell
+ollama list                         # also confirms the local service is reachable
+.\run-client.ps1
+```
+
+If local PowerShell policy blocks scripts, do not weaken the machine-wide
+policy. Use the following commands in the current PowerShell window instead:
+
+```powershell
+Get-Content .env | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') } | ForEach-Object {
+    $name, $value = $_.Split('=', 2)
+    [Environment]::SetEnvironmentVariable($name.Trim(), $value.Trim(), 'Process')
+}
+python .\ollama_remote_client.py
+```
+
+Alternatively, for a one-time session that leaves no token file on disk, set
+the same variables directly and run the client:
+
+```powershell
 
 $env:RF_MCP_URL = "http://192.168.1.20:8765/mcp"
 $env:RF_MCP_API_TOKEN = Read-Host "AISLOP bearer token"
@@ -87,8 +140,10 @@ python .\ollama_remote_client.py
 ```
 
 Use `py -3.12` instead if that is the supported interpreter installed on the
-PC. Environment variables above last only for that PowerShell process and keep
-the token out of the command history. Do not put the token in a URL.
+PC. Directly assigned environment variables last only for that PowerShell
+process, and `Read-Host` keeps the token out of command history. Do not put the
+token in a URL. The `.env` launcher also sets values only for its process and
+the child client; it does not modify the Windows user or system environment.
 
 The client discovers tool definitions from the Pi, but passes only a curated
 20-tool starter set to the local Ollama model on each request. This reduces the
@@ -108,6 +163,23 @@ non-mutating prompt:
 Show the RF API contract and available receiver backends. Do not tune, record,
 schedule, or create artifacts.
 ```
+
+After the `you>` prompt appears, ask in ordinary language. The client lets the
+model choose from these workflow groups:
+
+| Workflow | Included tools |
+| --- | --- |
+| Discover and check | `get_rf_api_contract`, `get_server_health`, `list_devices`, `list_digital_decoder_capabilities`, `list_sstv_decoder_capabilities` |
+| Inspect and decode | `inspect_spectrum`, `analyze_signal`, `receive_broadcast_fm`, `decode_digital_signal`, `decode_sstv`, `list_fm_stations` |
+| Band scan | `start_band_scan`, `get_band_scan_status`, `get_band_scan_results`, `stop_band_scan` |
+| Retrieve results | `list_rf_jobs`, `get_rf_job`, `list_rf_artifacts`, `get_rf_artifact`, `get_storage_status` |
+
+For example, ask `Inspect the spectrum around 100.1 MHz for two seconds` or
+`Start a band scan from 88 to 108 MHz, then report its status`. Review the
+model's requested action before allowing receiver changes or recordings. Enter
+another prompt after each answer; press `Ctrl+C` to exit. Generated captures
+and results remain on the Pi under its configured `RF_MCP_DATA_DIR`, rather
+than being copied automatically to the Windows client.
 
 The confirmation language is guidance to the model, not a security boundary.
 The bearer token grants access to every RF tool. Supervise the example and add
