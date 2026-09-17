@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from pathlib import Path
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
@@ -37,6 +38,24 @@ ESSENTIAL_TOOL_NAMES = frozenset(
         "list_fm_stations",
     }
 )
+
+
+def load_environment(path: Path | None = None) -> None:
+    """Load the example's dotenv file without replacing explicit settings."""
+    env_file = path or Path(__file__).with_name(".env")
+    if not env_file.is_file():
+        return
+
+    for line_number, line in enumerate(env_file.read_text(encoding="utf-8").splitlines(), 1):
+        trimmed = line.strip()
+        if not trimmed or trimmed.startswith("#"):
+            continue
+
+        name, separator, value = trimmed.partition("=")
+        name = name.strip()
+        if not separator or not name:
+            raise SystemExit(f"Invalid .env entry at {env_file}:{line_number}")
+        os.environ.setdefault(name, value.strip())
 
 
 def required_environment(name: str) -> str:
@@ -81,6 +100,7 @@ def result_text(result: object) -> str:
 
 
 async def main() -> None:
+    load_environment()
     url = required_environment("RF_MCP_URL")
     token = required_environment("RF_MCP_API_TOKEN")
     model = required_environment("OLLAMA_MODEL")
