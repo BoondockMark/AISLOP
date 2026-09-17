@@ -71,25 +71,22 @@ Install 64-bit Python 3.12 or 3.13 and Ollama on Windows, then choose an Ollama
 model that supports tool calling and fits the available 16 GB VRAM. Hardware
 capacity does not guarantee that every model or context size will fit.
 
-In PowerShell, copy this example directory to the Windows PC and run:
+Copy this example directory to the Windows PC, open Command Prompt, and run:
 
-```powershell
-cd C:\path\to\AISLOP\examples\rpi5-windows11
+```bat
+cd /d C:\path\to\AISLOP\examples\rpi5-windows11
 py -3.13 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m pip install -r requirements.txt
 ollama pull <tool-capable-model>
 ```
 
 ### Configure a reusable `.env` file
 
-The Python client reads normal process environment variables; Python does not
-automatically read a `.env` file. This example includes `run-client.ps1` to load
-the three required settings from a local `.env` into the child Python process.
-Create it from the safe template:
+The Python client loads the three required settings from a local `.env`. Create
+it from the safe template:
 
-```powershell
-Copy-Item .env.example .env
+```bat
+copy .env.example .env
 notepad .env
 ```
 
@@ -110,40 +107,31 @@ shown by `ollama list`. Values in this example must not contain inline comments.
 The repository ignores `.env` files, but treat this file as a password: do not
 commit, share, or copy it into logs. The template contains placeholders only.
 Ensure the Ollama desktop app is running (or run `ollama serve` in a separate
-PowerShell window), then launch the client:
+window), then launch the client directly from Command Prompt:
 
-```powershell
-ollama list                         # also confirms the local service is reachable
-.\run-client.ps1
+```bat
+rem This also confirms that the local Ollama service is reachable.
+ollama list
+.venv\Scripts\python.exe ollama_remote_client.py
 ```
 
-If local PowerShell policy blocks scripts, do not weaken the machine-wide
-policy. Use the following commands in the current PowerShell window instead:
+Existing PowerShell workflows can continue to use `run-client.ps1`. The Python
+client does not replace environment variables that are already set, so a
+one-time Command Prompt session can override `.env` without editing the file:
 
-```powershell
-Get-Content .env | Where-Object { $_.Trim() -and -not $_.Trim().StartsWith('#') } | ForEach-Object {
-    $name, $value = $_.Split('=', 2)
-    [Environment]::SetEnvironmentVariable($name.Trim(), $value.Trim(), 'Process')
-}
-python .\ollama_remote_client.py
-```
-
-Alternatively, for a one-time session that leaves no token file on disk, set
-the same variables directly and run the client:
-
-```powershell
-
-$env:RF_MCP_URL = "http://192.168.1.20:8765/mcp"
-$env:RF_MCP_API_TOKEN = Read-Host "AISLOP bearer token"
-$env:OLLAMA_MODEL = "<tool-capable-model>"
-python .\ollama_remote_client.py
+```bat
+set "RF_MCP_URL=http://192.168.1.20:8765/mcp"
+set /p "RF_MCP_API_TOKEN=AISLOP bearer token: "
+set "OLLAMA_MODEL=<tool-capable-model>"
+.venv\Scripts\python.exe ollama_remote_client.py
 ```
 
 Use `py -3.12` instead if that is the supported interpreter installed on the
-PC. Directly assigned environment variables last only for that PowerShell
-process, and `Read-Host` keeps the token out of command history. Do not put the
-token in a URL. The `.env` launcher also sets values only for its process and
-the child client; it does not modify the Windows user or system environment.
+PC. Directly assigned environment variables last only for that Command Prompt
+process, and `set /p` keeps the token itself out of command history (although it
+is visible while typed). Do not put the token in a URL. Values loaded from
+`.env` apply only to the Python process; they do not modify the Windows user or
+system environment.
 
 The client discovers tool definitions from the Pi, but passes only a curated
 20-tool starter set to the local Ollama model on each request. This reduces the
@@ -187,11 +175,10 @@ an application-enforced allowlist/approval UI before unattended use.
 
 ## 3. Verify the two-machine path
 
-From Windows PowerShell, test the exact Pi address used by the MCP client:
+From Command Prompt, test the exact Pi address used by the MCP client:
 
-```powershell
-Test-NetConnection 192.168.1.20 -Port 8765
-Invoke-RestMethod http://192.168.1.20:8765/healthz
+```bat
+curl.exe --fail http://192.168.1.20:8765/healthz
 ```
 
 `/healthz` is intentionally public and only proves reachability/readiness. A
