@@ -22,12 +22,12 @@ described in the main documentation.
 ## 1. Prepare the Raspberry Pi server
 
 Use a 64-bit, glibc-based Raspberry Pi OS installation and a dedicated,
-unprivileged login (the examples below use `rf`). AISLOP requires CPython 3.12
-or 3.13, so check the interpreter before installing:
+unprivileged login (the examples below use `rf`). AISLOP requires CPython 3.12,
+3.13, or 3.14, so check the interpreter before installing:
 
 ```sh
 uname -m                         # expected: aarch64
-python3 --version                # must be 3.12.x or 3.13.x
+python3 --version                # must be 3.12.x, 3.13.x, or 3.14.x
 sudo apt update
 sudo apt install -y git python3-venv openssl curl
 ```
@@ -67,8 +67,8 @@ Pi's address in DHCP (this guide uses `192.168.1.20`) or use working local DNS.
 
 ## 2. Prepare the Windows client
 
-Install 64-bit Python 3.12 or 3.13 and Ollama on Windows, then choose an Ollama
-model that supports tool calling and fits the available 16 GB VRAM. Hardware
+Install 64-bit Python 3.12, 3.13, or 3.14 and Ollama on Windows, then choose an
+Ollama model that supports tool calling and fits the available 16 GB VRAM. Hardware
 capacity does not guarantee that every model or context size will fit.
 
 Copy this example directory to the Windows PC, open Command Prompt, and run:
@@ -126,12 +126,12 @@ set "OLLAMA_MODEL=<tool-capable-model>"
 .venv\Scripts\python.exe ollama_remote_client.py
 ```
 
-Use `py -3.12` instead if that is the supported interpreter installed on the
-PC. Directly assigned environment variables last only for that Command Prompt
-process, and `set /p` keeps the token itself out of command history (although it
-is visible while typed). Do not put the token in a URL. Values loaded from
-`.env` apply only to the Python process; they do not modify the Windows user or
-system environment.
+Use `py -3.12` or `py -3.14` instead if that is the supported interpreter
+installed on the PC. Directly assigned environment variables last only for
+that Command Prompt process, and `set /p` keeps the token itself out of command
+history (although it is visible while typed). Do not put the token in a URL.
+Values loaded from `.env` apply only to the Python process; they do not modify
+the Windows user or system environment.
 
 The client discovers tool definitions from the Pi, but passes only a curated
 20-tool starter set to the local Ollama model on each request. This reduces the

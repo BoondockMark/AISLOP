@@ -5,6 +5,11 @@ All notable changes are recorded here. AISLOP uses [Semantic Versioning](https:/
 
 ## [Unreleased]
 
+### Fixed
+
+- Allowed installation on CPython 3.14 and added it to the tested runtime
+  matrix.
+
 ### Documentation
 
 - Reframed installation and usage around the packaged `rf-mcp` Multi-SDR RF

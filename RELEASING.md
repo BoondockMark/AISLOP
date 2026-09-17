@@ -37,7 +37,7 @@ compatibility and documentation decision.
 ## Automated gates
 
 - [ ] From a clean checkout run `uv sync --all-groups` and `uv run pytest` on
-  CPython 3.12 and 3.13 and every advertised OS.
+  CPython 3.12, 3.13, and 3.14 and every advertised OS.
 - [ ] Run `uv run ruff format --check .`, `uv run ruff check .`, `uv run mypy`,
   `uv run python scripts/validate_dependencies.py`, `uv pip check`, and
   `uv run pip-audit -r requirements.lock`.

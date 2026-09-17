@@ -16,15 +16,15 @@ fi
 validate_python() {
   "$1" -c '
 import sys
-if not ((3, 12) <= sys.version_info[:2] < (3, 14)):
+if not ((3, 12) <= sys.version_info[:2] < (3, 15)):
     raise SystemExit(
-        f"Python 3.12 or 3.13 is required; found {sys.version_info.major}.{sys.version_info.minor}"
+        f"Python 3.12, 3.13, or 3.14 is required; found {sys.version_info.major}.{sys.version_info.minor}"
     )
 '
 }
 
 if ! validate_python "$python_bin"; then
-  echo "The RF MCP service requires a supported Python version (3.12 or 3.13)." >&2
+  echo "The RF MCP service requires a supported Python version (3.12, 3.13, or 3.14)." >&2
   exit 1
 fi
 
@@ -48,7 +48,7 @@ if [[ ! -x "$venv_dir/bin/python" ]]; then
 fi
 
 if ! validate_python "$venv_dir/bin/python"; then
-  echo "The existing virtual environment does not use Python 3.12 or 3.13: $venv_dir" >&2
+  echo "The existing virtual environment does not use Python 3.12, 3.13, or 3.14: $venv_dir" >&2
   exit 1
 fi
 

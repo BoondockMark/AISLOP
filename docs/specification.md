@@ -15,7 +15,7 @@ observer and it is not read-only with respect to its own data: it records a
 catalog, artifacts, settings, schedules, alerts, and observations and can launch
 receiver and decoder subprocesses.
 
-It requires CPython 3.12 or 3.13. The wheel contains NumPy/SciPy DSP,
+It requires CPython 3.12, 3.13, or 3.14. The wheel contains NumPy/SciPy DSP,
 Matplotlib/Pillow artifact generation, Starlette/Uvicorn web service code, and
 the MCP Python SDK (`mcp>=1.30.0,<2`). Skyfield-backed satellite prediction is
 optional through `aislop-sdr[satellite]`.
