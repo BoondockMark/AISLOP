@@ -47,3 +47,24 @@ progress.progressTrack::-moz-progress-bar,progress.bandProgress::-moz-progress-b
 .button-link{display:inline-flex;align-items:center;min-height:36px;padding:7px 10px;border:1px solid var(--line);border-radius:7px;text-decoration:none}.button-link:hover{border-color:var(--accent);color:#fff}.button-link:focus-visible{outline:3px solid var(--warn);outline-offset:3px}
 .function-preset{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr)) auto;gap:16px;align-items:end;margin:18px 0 0;padding:16px;border:1px solid var(--line);border-radius:11px;background:#0a1626}.function-preset>div{display:flex;align-items:end}.preset-summary{margin:0 0 18px;padding:10px 12px;border-left:4px solid var(--good);background:#08111f;color:var(--text);line-height:1.5}.quick-links{padding-bottom:6px}@media(max-width:700px){.function-preset{grid-template-columns:1fr 1fr}.function-preset>div{grid-column:1/-1}.function-preset button{width:100%}}@media(max-width:450px){.function-preset{grid-template-columns:1fr}.function-preset>div{grid-column:auto}}
 .waterfall-wrap{margin-top:14px;overflow:hidden;border:1px solid var(--line);border-radius:9px;background:#03070d}.waterfall-wrap canvas{display:block;width:100%;height:auto;max-height:520px}.waterfall-panel .controls{grid-template-columns:2fr 1fr 1fr 1fr auto}@media(max-width:850px){.waterfall-panel .controls{grid-template-columns:1fr 1fr}}
+
+/* The PDF is a clean snapshot of the selected workspace. A one-inch edge tab
+   moves down one inch per section so a printed handbook can be thumbed. */
+#printSectionTab{display:none}
+@page{margin:.55in .5in .55in .55in}
+@media print{
+  :root{--print-section-index:0;color-scheme:light}
+  body{background:#fff!important;color:#111;font:10pt/1.35 system-ui,sans-serif;print-color-adjust:exact;-webkit-print-color-adjust:exact}
+  header{display:block;padding:0 0 .18in;border-bottom:1px solid #777}
+  header h1{font-size:18pt;line-height:1.15;margin:0 0 .06in}
+  header span{display:block;color:#444;line-height:1.25}
+  header form,.dashboard-nav,.dashboard-nav-toggle,#receiverBar,#activityDrawer,#toast,dialog,button,.action-row,a.button-link,.image-thumbnail-actions{display:none!important}
+  main{max-width:none;margin:0;padding:.22in .22in 0 0}
+  .card,.operation-workspace,.receiver-candidate,.favorite-card,.sstv-card{background:#fff;color:#111;border-color:#999;box-shadow:none;break-inside:avoid}
+  .card{padding:.14in;border-radius:0}
+  h2,h3{line-height:1.2;break-after:avoid}
+  .muted,.field,.field-help,label,th{color:#444}
+  input,select,textarea{color:#111;background:#fff;border-color:#999}
+  table{font-size:8.5pt}th,td{padding:5px 4px;border-color:#bbb;white-space:normal}
+  #printSectionTab{position:fixed;z-index:1000;display:flex;align-items:center;justify-content:center;top:calc(.55in + var(--print-section-index) * 1in);right:-.5in;width:.38in;height:1in;padding:.04in 0;background:var(--accent);color:#fff;font-size:8pt;font-weight:800;line-height:1;letter-spacing:.02em;white-space:nowrap;writing-mode:vertical-rl;text-orientation:mixed}
+}

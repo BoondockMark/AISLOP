@@ -298,6 +298,21 @@ def test_dashboard_preferences_are_versioned_validated_and_safe():
     assert "dashboardPreferences.setSection(id)" in script
 
 
+def test_print_layout_has_section_specific_edge_tabs():
+    """Printed workspaces use staggered one-inch tabs and stable header flow."""
+    assets = resources.files("rf_mcp").joinpath("assets")
+    script = assets.joinpath("dashboard.js").read_text(encoding="utf-8")
+    styles = assets.joinpath("dashboard.css").read_text(encoding="utf-8")
+
+    assert "printSectionTab" in script
+    assert "dashboardViews.indexOf(id)+1" in script
+    assert "--print-section-index" in script
+    assert "@media print" in styles
+    assert "var(--print-section-index) * 1in" in styles
+    assert "writing-mode:vertical-rl" in styles
+    assert "header{display:block" in styles
+
+
 def test_storage_status_component_handles_capacity_states():
     """Storage remains useful for complete, low, incomplete, and zero-sized data."""
     script = resources.files("rf_mcp").joinpath("assets/dashboard.js").read_text(
